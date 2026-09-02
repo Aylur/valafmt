@@ -703,19 +703,12 @@ impl Parser {
             None
         };
         let mut parts = vec![self.expect_ident()?];
-        while self.at(K::Dot) && self.next_is_ident(1) {
+        // After a `.` any keyword reads as a name part (`EmailFlags.with`).
+        while self.at(K::Dot) && matches!(self.nth_kind(1), K::Ident | K::Kw(_)) {
             parts.push(self.bump()); // .
             parts.push(self.bump()); // ident
         }
         Ok(QualifiedName { global, parts })
-    }
-
-    fn next_is_ident(&self, n: usize) -> bool {
-        match self.nth_kind(n) {
-            K::Ident => true,
-            K::Kw(kw) => CONTEXTUAL.contains(&kw),
-            _ => false,
-        }
     }
 
     fn at_type_prefix(&self) -> bool {
@@ -1694,17 +1687,6 @@ impl Parser {
                 Ok(Expr::Global { global_kw, colon_colon, name })
             }
             K::Kw(kw) if CONTEXTUAL.contains(&kw) => Ok(Expr::Atom(self.bump())),
-            // Any keyword reads as a plain identifier when the next token
-            // cannot continue its keyword role (`if (delete)` where `delete`
-            // is a parameter).
-            K::Kw(_)
-                if matches!(
-                    self.nth_kind(1),
-                    K::RParen | K::Comma | K::Semicolon | K::RBracket | K::Dot | K::Assign
-                ) =>
-            {
-                Ok(Expr::Atom(self.bump()))
-            }
             K::LParen => {
                 let l_paren = self.bump();
                 let expr = self.parse_expr()?;
@@ -1745,6 +1727,42 @@ impl Parser {
                 let ty = self.parse_type()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
                 Ok(Expr::Sizeof { kw, l_paren, ty, r_paren })
+            }
+            // Last resort: any other keyword reads as a plain identifier when
+            // the next token can only *continue* an expression
+            // (`if (delete)`, `out != null`, `ref()`, `namespace(cmd, args)`).
+            K::Kw(_)
+                if matches!(
+                    self.nth_kind(1),
+                    K::RParen
+                        | K::Comma
+                        | K::Semicolon
+                        | K::RBracket
+                        | K::Dot
+                        | K::Assign
+                        | K::LParen
+                        | K::Eq
+                        | K::NotEq
+                        | K::LtEq
+                        | K::GtEq
+                        | K::Plus
+                        | K::Minus
+                        | K::Star
+                        | K::Slash
+                        | K::Percent
+                        | K::AmpAmp
+                        | K::PipePipe
+                        | K::QuestionQuestion
+                        | K::QuestionDot
+                        | K::Question
+                        | K::Arrow
+                        | K::Colon
+                        | K::Kw(Kw::In)
+                        | K::Kw(Kw::Is)
+                        | K::Kw(Kw::As)
+                ) =>
+            {
+                Ok(Expr::Atom(self.bump()))
             }
             _ => self.error(format!("expected expression, found `{}`", self.describe())),
         }

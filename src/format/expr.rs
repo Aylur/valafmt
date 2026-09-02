@@ -466,10 +466,21 @@ pub fn initializer_doc(init: &InitializerList) -> Doc {
         doc::if_break(doc::text(","), doc::nil())
     };
     inner.push(trailing_comma);
-    doc::group(doc::concat(vec![
+    // The closing brace's trailing comments are emitted outside the group so
+    // a `} // note` doesn't force the whole list to break (which would
+    // re-attach the comment differently on the next run).
+    let mut close = Vec::new();
+    for p in super::trivia::leading_parts(&init.r_brace.leading) {
+        close.push(p);
+        close.push(doc::hardline());
+    }
+    close.push(super::trivia::token_text(&init.r_brace));
+    let mut out = vec![doc::group(doc::concat(vec![
         tok(&init.l_brace),
         doc::indent(doc::concat(vec![doc::line(), doc::concat(inner)])),
         doc::line(),
-        tok(&init.r_brace),
-    ]))
+        doc::concat(close),
+    ]))];
+    out.extend(super::trivia::trailing_docs(&init.r_brace.trailing));
+    doc::concat(out)
 }

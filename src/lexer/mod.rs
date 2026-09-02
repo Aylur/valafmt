@@ -629,6 +629,12 @@ impl<'a> Lexer<'a> {
                 return TokenKind::Error;
             }
             if self.cur.starts_with("\"\"\"") {
+                // In a quote run longer than 3, the extra quotes belong to
+                // the content and the *last* three close the literal
+                // (`""""""" ` ends content `"` with closing `"""`).
+                while self.cur.peek_at(3) == b'"' {
+                    self.cur.bump();
+                }
                 self.cur.bump();
                 self.cur.bump();
                 self.cur.bump();
