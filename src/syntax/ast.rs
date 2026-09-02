@@ -202,6 +202,7 @@ pub struct ConstantDecl {
     pub const_kw: Token,
     pub ty: Type,
     pub name: Token,
+    pub array: Option<CArraySuffix>,
     pub init: Option<(Token, Expr)>,
     pub semicolon: Token,
 }
@@ -211,6 +212,7 @@ pub struct FieldDecl {
     pub modifiers: Vec<Token>,
     pub ty: Type,
     pub name: Token,
+    pub array: Option<CArraySuffix>,
     pub init: Option<(Token, Expr)>,
     pub semicolon: Token,
 }
@@ -366,6 +368,13 @@ pub enum TypeCore {
     },
     /// `void`
     Void(Token),
+    /// `(unowned string)` — parenthesized type, used for array element
+    /// ownership like `(unowned string)[]`.
+    Paren {
+        l_paren: Token,
+        inner: Box<Type>,
+        r_paren: Token,
+    },
 }
 
 #[derive(Debug)]
@@ -408,6 +417,8 @@ pub enum Stmt {
     Empty(Token),
     /// `var x = ...;` / `Type x = ..., y;` / `const Type X = ...;`
     LocalDecl(LocalDecl),
+    /// A nested function declared inside a method body.
+    LocalMethod(MethodDecl),
     Expr {
         expr: Expr,
         semicolon: Token,
@@ -478,9 +489,18 @@ pub enum LocalDeclType {
     Type(Type),
 }
 
+/// C-style fixed array on a declarator name: `uint8 buffer[LEN]`.
+#[derive(Debug)]
+pub struct CArraySuffix {
+    pub l_bracket: Token,
+    pub size: Option<Expr>,
+    pub r_bracket: Token,
+}
+
 #[derive(Debug)]
 pub struct Declarator {
     pub name: Token,
+    pub array: Option<CArraySuffix>,
     pub init: Option<(Token, Expr)>, // `=` expr
 }
 
@@ -670,6 +690,8 @@ pub enum Expr {
         l_paren: Token,
         args: Punctuated<Arg>,
         r_paren: Token,
+        /// Struct creation without `new`: `StructName () { field = value }`.
+        initializer: Option<InitializerList>,
     },
     Index {
         base: Box<Expr>,
@@ -795,18 +817,26 @@ pub struct Arg {
 #[derive(Debug)]
 pub struct InitializerList {
     pub l_brace: Token,
-    pub items: Punctuated<Expr>,
+    /// Items may carry `out`/`ref` modifiers (GLib option entry tables).
+    pub items: Punctuated<Arg>,
     pub r_brace: Token,
+}
+
+#[derive(Debug)]
+pub struct LambdaParam {
+    /// `ref` / `out` / `owned` modifiers (used with bind_property closures).
+    pub modifiers: Vec<Token>,
+    pub name: Token,
 }
 
 #[derive(Debug)]
 pub enum LambdaParams {
     /// `ident => ...`
     Single(Token),
-    /// `(a, b) => ...`
+    /// `(a, ref b) => ...`
     List {
         l_paren: Token,
-        params: Punctuated<Token>,
+        params: Punctuated<LambdaParam>,
         r_paren: Token,
     },
 }
@@ -880,6 +910,7 @@ impl Type {
         match &self.core {
             TypeCore::Named { name, .. } => name.first_token(),
             TypeCore::Void(t) => t,
+            TypeCore::Paren { l_paren, .. } => l_paren,
         }
     }
 }
@@ -899,6 +930,9 @@ impl Stmt {
             Stmt::Block(b) => &b.l_brace,
             Stmt::Empty(t) => t,
             Stmt::LocalDecl(d) => d.const_kw.as_ref().unwrap_or_else(|| d.ty.first_token()),
+            Stmt::LocalMethod(m) => {
+                m.modifiers.first().unwrap_or_else(|| m.return_type.first_token())
+            }
             Stmt::Expr { expr, .. } => expr.first_token(),
             Stmt::If(s) => &s.if_kw,
             Stmt::Switch(s) => &s.switch_kw,

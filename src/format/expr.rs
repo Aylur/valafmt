@@ -161,7 +161,11 @@ fn lambda_doc(params: &LambdaParams, arrow: &Token, body: &LambdaBody) -> Doc {
                     out.push(tok(&params.commas[i - 1]));
                     out.push(sp());
                 }
-                out.push(tok(p));
+                for m in &p.modifiers {
+                    out.push(tok(m));
+                    out.push(sp());
+                }
+                out.push(tok(&p.name));
             }
             out.push(tok(r_paren));
         }
@@ -251,6 +255,7 @@ enum Link<'a> {
         l_paren: &'a Token,
         args: &'a Punctuated<Arg>,
         r_paren: &'a Token,
+        initializer: &'a Option<InitializerList>,
     },
     Index { l_bracket: &'a Token, indices: &'a Punctuated<Expr>, r_bracket: &'a Token },
     Slice {
@@ -270,8 +275,8 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
                 links.push(Link::Member { op, name, type_args });
                 e = base;
             }
-            Expr::Call { callee, type_args, l_paren, args, r_paren } => {
-                links.push(Link::Call { type_args, l_paren, args, r_paren });
+            Expr::Call { callee, type_args, l_paren, args, r_paren, initializer } => {
+                links.push(Link::Call { type_args, l_paren, args, r_paren, initializer });
                 e = callee;
             }
             Expr::Index { base, l_bracket, indices, r_bracket } => {
@@ -332,7 +337,7 @@ fn chain_doc(e: &Expr) -> Doc {
                     target.push(type_args_doc(args));
                 }
             }
-            Link::Call { type_args, l_paren, args, r_paren } => {
+            Link::Call { type_args, l_paren, args, r_paren, initializer } => {
                 if let Some(ta) = type_args {
                     target.push(type_args_doc(ta));
                 }
@@ -340,6 +345,10 @@ fn chain_doc(e: &Expr) -> Doc {
                     target.push(hugged_call_args_doc(l_paren, args, r_paren));
                 } else {
                     target.push(call_args_doc(l_paren, args, r_paren));
+                }
+                if let Some(init) = initializer {
+                    target.push(sp());
+                    target.push(initializer_doc(init));
                 }
             }
             Link::Index { l_bracket, indices, r_bracket } => {
@@ -445,7 +454,7 @@ pub fn initializer_doc(init: &InitializerList) -> Doc {
             inner.push(tok(&init.items.commas[i - 1]));
             inner.push(doc::line());
         }
-        inner.push(expr_doc(item));
+        inner.push(arg_doc(item));
     }
     // A trailing comma in source is dropped flat / kept broken; one is added
     // when the list breaks. The safety check treats trailing commas before a

@@ -190,6 +190,8 @@ pub enum TokenKind {
     Semicolon,
     Question,
     QuestionQuestion,
+    /// `?.` null-safe member access.
+    QuestionDot,
     Arrow,    // ->
     FatArrow, // =>
     Assign,

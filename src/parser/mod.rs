@@ -326,6 +326,7 @@ impl Parser {
                 let const_kw = self.bump();
                 let ty = self.parse_type()?;
                 let name = self.expect_ident()?;
+                let array = self.parse_opt_c_array()?;
                 let init = match self.eat(K::Assign) {
                     Some(eq) => Some((eq, self.parse_expr()?)),
                     None => None,
@@ -336,6 +337,7 @@ impl Parser {
                     const_kw,
                     ty,
                     name,
+                    array,
                     init,
                     semicolon,
                 }))
@@ -371,7 +373,16 @@ impl Parser {
         }
 
         let ty = self.parse_type()?;
-        let name = self.parse_qualified_name()?;
+        // A keyword followed by a disambiguating token reads as a member
+        // name: `public void foreach (...)`, `public PhotoID ref;`.
+        let name = if !self.at_ident()
+            && matches!(self.kind(), K::Kw(_))
+            && matches!(self.nth_kind(1), K::LParen | K::Semicolon | K::Assign | K::LBracket)
+        {
+            QualifiedName { global: None, parts: vec![self.bump()] }
+        } else {
+            self.parse_qualified_name()?
+        };
         match self.kind() {
             K::LParen | K::Lt => {
                 let type_params = self.parse_opt_type_params()?;
@@ -415,12 +426,13 @@ impl Parser {
                     return self.error("expected `(`, `{`, `=`, or `;` after member name");
                 }
                 let name = name.parts.into_iter().next().unwrap();
+                let array = self.parse_opt_c_array()?;
                 let init = match self.eat(K::Assign) {
                     Some(eq) => Some((eq, self.parse_expr()?)),
                     None => None,
                 };
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(MemberKind::Field(FieldDecl { modifiers, ty, name, init, semicolon }))
+                Ok(MemberKind::Field(FieldDecl { modifiers, ty, name, array, init, semicolon }))
             }
         }
     }
@@ -627,7 +639,15 @@ impl Parser {
             return Ok(Param { attributes, modifiers, kind: ParamKind::Ellipsis(ellipsis) });
         }
         let ty = self.parse_type()?;
-        let name = self.expect_ident()?;
+        // Keywords appear as parameter names in the wild (`bool delete`).
+        let name = if !self.at_ident()
+            && matches!(self.kind(), K::Kw(_))
+            && matches!(self.nth_kind(1), K::Comma | K::RParen | K::Assign)
+        {
+            self.bump()
+        } else {
+            self.expect_ident()?
+        };
         let default = match self.eat(K::Assign) {
             Some(eq) => Some((eq, self.parse_expr()?)),
             None => None,
@@ -712,6 +732,16 @@ impl Parser {
         }
         let core = if self.at_kw(Kw::Void) {
             TypeCore::Void(self.bump())
+        } else if self.at(K::LParen) {
+            // `(unowned string)[]` — parenthesized type; only valid with an
+            // array suffix following.
+            let l_paren = self.bump();
+            let inner = self.parse_type()?;
+            let r_paren = self.expect(K::RParen, "`)`")?;
+            if !self.at(K::LBracket) {
+                return self.error("expected `[` after parenthesized type");
+            }
+            TypeCore::Paren { l_paren, inner: Box::new(inner), r_paren }
         } else {
             let name = self.parse_qualified_name()?;
             let type_args = if self.at(K::Lt) {
@@ -976,6 +1006,7 @@ impl Parser {
     }
 
     fn parse_local_decl_type(&mut self) -> PResult<LocalDeclType> {
+        let save = self.pos;
         let mut prefix = Vec::new();
         while self.at_type_prefix() {
             prefix.push(self.bump());
@@ -985,20 +1016,8 @@ impl Parser {
             let nullable = self.eat(K::Question);
             Ok(LocalDeclType::Var { prefix, var_kw, nullable })
         } else {
-            // Re-parse prefix as part of the full type.
-            let core = if self.at_kw(Kw::Void) {
-                TypeCore::Void(self.bump())
-            } else {
-                let name = self.parse_qualified_name()?;
-                let type_args = if self.at(K::Lt) {
-                    self.try_parse(|p| p.parse_type_arg_list())
-                } else {
-                    None
-                };
-                TypeCore::Named { name, type_args }
-            };
-            let suffixes = self.parse_type_suffixes()?;
-            Ok(LocalDeclType::Type(Type { prefix, core, suffixes }))
+            self.pos = save;
+            Ok(LocalDeclType::Type(self.parse_type()?))
         }
     }
 
@@ -1062,31 +1081,70 @@ impl Parser {
         if let Some(decl) = self.try_parse(|p| p.parse_local_decl()) {
             return Ok(Stmt::LocalDecl(decl));
         }
+        if let Some(m) = self.try_parse(|p| p.parse_local_method()) {
+            return Ok(Stmt::LocalMethod(m));
+        }
         let expr = self.parse_expr()?;
         let semicolon = self.expect(K::Semicolon, "`;`")?;
         Ok(Stmt::Expr { expr, semicolon })
+    }
+
+    /// A nested function: `Type name (params) { ... }` inside a method body.
+    /// Committed only when the parameter list is followed by a block.
+    fn parse_local_method(&mut self) -> PResult<MethodDecl> {
+        let return_type = self.parse_type()?;
+        if !self.at_ident() {
+            return self.error("not a local function");
+        }
+        let name = QualifiedName { global: None, parts: vec![self.bump()] };
+        let l_paren = self.expect(K::LParen, "`(`")?;
+        let params = self.parse_params()?;
+        let r_paren = self.expect(K::RParen, "`)`")?;
+        let throws = self.parse_opt_throws()?;
+        if !self.at(K::LBrace) {
+            return self.error("not a local function");
+        }
+        let body = Body::Block(self.parse_block()?);
+        Ok(MethodDecl {
+            modifiers: Vec::new(),
+            return_type,
+            name,
+            type_params: None,
+            l_paren,
+            params,
+            r_paren,
+            throws,
+            contracts: Vec::new(),
+            body,
+        })
     }
 
     /// `[const] Type name [= expr][, name [= expr]]* ;`
     fn parse_local_decl(&mut self) -> PResult<LocalDecl> {
         let const_kw = self.eat(K::Kw(Kw::Const));
         let ty = self.parse_local_decl_type()?;
-        // Commit test: a declaration has an identifier here followed by
-        // `=`, `;`, or `,`.
-        if !self.at_ident() {
+        // Commit test: a declaration has a name here (identifier, or a
+        // keyword used as one — `OutputStream out;`) followed by `=`, `;`,
+        // `,`, or a C-style array suffix `[`.
+        if !matches!(self.kind(), K::Ident | K::Kw(_)) {
             return self.error("not a declaration");
         }
-        if !matches!(self.nth_kind(1), K::Assign | K::Semicolon | K::Comma) {
+        if !matches!(self.nth_kind(1), K::Assign | K::Semicolon | K::Comma | K::LBracket) {
             return self.error("not a declaration");
         }
         let mut declarators = Punctuated::new();
         loop {
-            let name = self.expect_ident()?;
+            let name = if matches!(self.kind(), K::Ident | K::Kw(_)) {
+                self.bump()
+            } else {
+                return self.error("expected variable name");
+            };
+            let array = self.parse_opt_c_array()?;
             let init = match self.eat(K::Assign) {
                 Some(eq) => Some((eq, self.parse_expr()?)),
                 None => None,
             };
-            declarators.items.push(Declarator { name, init });
+            declarators.items.push(Declarator { name, array, init });
             match self.eat(K::Comma) {
                 Some(comma) => declarators.commas.push(comma),
                 None => break,
@@ -1133,11 +1191,16 @@ impl Parser {
         let is_lambda = if self.at_ident() && self.nth_kind(1) == K::FatArrow {
             true
         } else if self.at(K::LParen) {
-            // Scan: ( [ident [, ident]*] ) =>
+            // Scan: ( [[ref|out|owned] ident [, ...]*] ) =>
             let mut i = 1;
             loop {
                 match self.nth_kind(i) {
                     K::RParen => break,
+                    K::Kw(Kw::Ref) | K::Kw(Kw::Out) | K::Kw(Kw::Owned)
+                        if matches!(self.nth_kind(i + 1), K::Ident | K::Kw(_)) =>
+                    {
+                        i += 1;
+                    }
                     K::Ident | K::Kw(_) => {
                         i += 1;
                         match self.nth_kind(i) {
@@ -1161,7 +1224,16 @@ impl Parser {
             let mut params = Punctuated::new();
             if !self.at(K::RParen) {
                 loop {
-                    params.items.push(self.bump());
+                    let mut modifiers = Vec::new();
+                    while matches!(
+                        self.kind(),
+                        K::Kw(Kw::Ref) | K::Kw(Kw::Out) | K::Kw(Kw::Owned)
+                    ) && matches!(self.nth_kind(1), K::Ident | K::Kw(_))
+                    {
+                        modifiers.push(self.bump());
+                    }
+                    let name = self.bump();
+                    params.items.push(LambdaParam { modifiers, name });
                     match self.eat(K::Comma) {
                         Some(comma) => params.commas.push(comma),
                         None => break,
@@ -1188,9 +1260,12 @@ impl Parser {
             return Ok(cond);
         }
         let question = self.bump();
-        let then = self.parse_expr_no_stmt_keywords()?;
+        // Branches admit assignments (`c ? a = x : b = y` appears in real
+        // code); the then-branch stops at the `:` because assignment/
+        // coalescing levels never consume a bare colon.
+        let then = self.parse_assignment()?;
         let colon = self.expect(K::Colon, "`:`")?;
-        let els = self.parse_conditional_branch()?;
+        let els = self.parse_assignment()?;
         Ok(Expr::Ternary {
             cond: Box::new(cond),
             question,
@@ -1198,20 +1273,6 @@ impl Parser {
             colon,
             els: Box::new(els),
         })
-    }
-
-    fn parse_expr_no_stmt_keywords(&mut self) -> PResult<Expr> {
-        // The then-branch of `?:` must not consume the `:`; coalescing level
-        // and below never do.
-        if let Some(lambda) = self.try_parse_lambda()? {
-            return Ok(lambda);
-        }
-        self.parse_coalescing()
-    }
-
-    fn parse_conditional_branch(&mut self) -> PResult<Expr> {
-        // Right-associative nesting: `a ? b : c ? d : e`.
-        self.parse_conditional()
     }
 
     fn parse_coalescing(&mut self) -> PResult<Expr> {
@@ -1443,7 +1504,7 @@ impl Parser {
         let mut expr = self.parse_primary()?;
         loop {
             match self.kind() {
-                K::Dot | K::Arrow => {
+                K::Dot | K::Arrow | K::QuestionDot => {
                     let op = self.bump();
                     // After `.` any keyword reads unambiguously as a member
                     // name (`list.foreach`, `object.get`, ...).
@@ -1474,12 +1535,14 @@ impl Parser {
                     let l_paren = self.bump();
                     let args = self.parse_args()?;
                     let r_paren = self.expect(K::RParen, "`)`")?;
+                    let initializer = self.parse_opt_struct_initializer()?;
                     expr = Expr::Call {
                         callee: Box::new(expr),
                         type_args: None,
                         l_paren,
                         args,
                         r_paren,
+                        initializer,
                     };
                 }
                 // Generic invocation on a bare callee: `f<int> (...)`.
@@ -1503,6 +1566,7 @@ impl Parser {
                                 l_paren,
                                 args,
                                 r_paren,
+                                initializer: None,
                             };
                         }
                         None => return Ok(expr),
@@ -1550,6 +1614,31 @@ impl Parser {
         }
     }
 
+    /// `[LEN]` / `[]` after a declarator name (C-style fixed array).
+    fn parse_opt_c_array(&mut self) -> PResult<Option<CArraySuffix>> {
+        if !self.at(K::LBracket) {
+            return Ok(None);
+        }
+        let l_bracket = self.bump();
+        let size = if self.at(K::RBracket) { None } else { Some(self.parse_expr()?) };
+        let r_bracket = self.expect(K::RBracket, "`]`")?;
+        Ok(Some(CArraySuffix { l_bracket, size, r_bracket }))
+    }
+
+    /// Struct creation without `new`: after `Name (...)`, a `{` that looks
+    /// like an object initializer (`{ ident = ...` or `{}`) starts one.
+    fn parse_opt_struct_initializer(&mut self) -> PResult<Option<InitializerList>> {
+        if !self.at(K::LBrace) {
+            return Ok(None);
+        }
+        let looks_like_init = self.nth_kind(1) == K::RBrace
+            || (matches!(self.nth_kind(1), K::Ident | K::Kw(_)) && self.nth_kind(2) == K::Assign);
+        if !looks_like_init {
+            return Ok(None);
+        }
+        Ok(Some(self.parse_initializer_list()?))
+    }
+
     fn parse_args(&mut self) -> PResult<Punctuated<Arg>> {
         let mut args = Punctuated::new();
         if self.at(K::RParen) {
@@ -1557,7 +1646,13 @@ impl Parser {
         }
         loop {
             let modifier = match self.kind() {
-                K::Kw(Kw::Out) | K::Kw(Kw::Ref) => Some(self.bump()),
+                // `out`/`ref` are argument modifiers only when an expression
+                // follows (`f (out x)` yes, `f (out)` treats it as a name).
+                K::Kw(Kw::Out) | K::Kw(Kw::Ref)
+                    if !matches!(self.nth_kind(1), K::RParen | K::Comma | K::Assign) =>
+                {
+                    Some(self.bump())
+                }
                 _ => None,
             };
             let name = if self.at_ident() && self.nth_kind(1) == K::Colon {
@@ -1599,6 +1694,17 @@ impl Parser {
                 Ok(Expr::Global { global_kw, colon_colon, name })
             }
             K::Kw(kw) if CONTEXTUAL.contains(&kw) => Ok(Expr::Atom(self.bump())),
+            // Any keyword reads as a plain identifier when the next token
+            // cannot continue its keyword role (`if (delete)` where `delete`
+            // is a parameter).
+            K::Kw(_)
+                if matches!(
+                    self.nth_kind(1),
+                    K::RParen | K::Comma | K::Semicolon | K::RBracket | K::Dot | K::Assign
+                ) =>
+            {
+                Ok(Expr::Atom(self.bump()))
+            }
             K::LParen => {
                 let l_paren = self.bump();
                 let expr = self.parse_expr()?;
@@ -1648,7 +1754,13 @@ impl Parser {
         let l_brace = self.expect(K::LBrace, "`{`")?;
         let mut items = Punctuated::new();
         while !self.at(K::RBrace) && !self.at(K::Eof) {
-            items.items.push(self.parse_expr()?);
+            // Items may carry out/ref modifiers (GLib option entry tables).
+            let modifier = match self.kind() {
+                K::Kw(Kw::Out) | K::Kw(Kw::Ref) => Some(self.bump()),
+                _ => None,
+            };
+            let expr = self.parse_expr()?;
+            items.items.push(Arg { modifier, name: None, expr });
             match self.eat(K::Comma) {
                 Some(comma) => items.commas.push(comma),
                 None => break,

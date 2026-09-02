@@ -64,6 +64,7 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
         Stmt::Block(b) => block_doc(b),
         Stmt::Empty(t) => tok(t),
         Stmt::LocalDecl(d) => local_decl_doc(d),
+        Stmt::LocalMethod(m) => super::method_decl_doc(m),
         Stmt::Expr { expr, semicolon } => doc::concat(vec![expr_doc(expr), tok(semicolon)]),
         Stmt::If(i) => if_doc(i),
         Stmt::Switch(sw) => switch_doc(sw),
@@ -198,6 +199,7 @@ pub fn local_decl_doc(d: &LocalDecl) -> Doc {
             out.push(sp());
         }
         out.push(tok(&decl.name));
+        out.push(super::c_array_doc(&decl.array));
         if let Some((eq, init)) = &decl.init {
             out.push(assign_rhs_doc(eq, init));
         }

@@ -62,7 +62,14 @@ pub fn format_source(src: &str, options: &Options) -> Result<String, FormatError
     }
     let file = parser::parse(lexed.tokens).map_err(|e| {
         let (line, col) = lexer::cursor::Cursor::line_col(src, e.offset);
-        FormatError::Parse(vec![Diagnostic { offset: e.offset, line, col, message: e.message }])
+        let mut message = e.message;
+        if src.contains("#if") {
+            message.push_str(
+                "\nnote: this file uses #if preprocessor branches; valafmt can only \
+                 format files whose branches each form valid syntax on their own",
+            );
+        }
+        FormatError::Parse(vec![Diagnostic { offset: e.offset, line, col, message }])
     })?;
     let doc = format::format_file(&file);
     let output = doc::printer::print(&doc, options);

@@ -74,6 +74,11 @@ pub fn type_doc(ty: &Type) -> Doc {
                 out.push(type_args_doc(args));
             }
         }
+        TypeCore::Paren { l_paren, inner, r_paren } => {
+            out.push(tok(l_paren));
+            out.push(type_doc(inner));
+            out.push(tok(r_paren));
+        }
     }
     for s in &ty.suffixes {
         match s {
@@ -216,6 +221,7 @@ fn member_kind_doc(kind: &MemberKind) -> Doc {
                 sp(),
                 tok(&c.name),
             ];
+            out.push(c_array_doc(&c.array));
             if let Some((eq, init)) = &c.init {
                 out.push(assign_rhs_doc(eq, init));
             }
@@ -224,30 +230,14 @@ fn member_kind_doc(kind: &MemberKind) -> Doc {
         }
         MemberKind::Field(f) => {
             let mut out = vec![modifiers_doc(&f.modifiers), type_doc(&f.ty), sp(), tok(&f.name)];
+            out.push(c_array_doc(&f.array));
             if let Some((eq, init)) = &f.init {
                 out.push(assign_rhs_doc(eq, init));
             }
             out.push(tok(&f.semicolon));
             doc::concat(out)
         }
-        MemberKind::Method(m) => {
-            let mut out = vec![
-                modifiers_doc(&m.modifiers),
-                type_doc(&m.return_type),
-                sp(),
-                qualified_name_doc(&m.name),
-            ];
-            if let Some(tp) = &m.type_params {
-                out.push(type_params_doc(tp));
-            }
-            out.push(params_doc(&m.l_paren, &m.params, &m.r_paren));
-            if let Some(t) = &m.throws {
-                out.push(throws_doc(t));
-            }
-            out.push(contracts_doc(&m.contracts));
-            out.push(body_doc(&m.body));
-            doc::concat(out)
-        }
+        MemberKind::Method(m) => method_decl_doc(m),
         MemberKind::CreationMethod(m) => {
             let mut out = vec![modifiers_doc(&m.modifiers), qualified_name_doc(&m.name)];
             out.push(params_doc(&m.l_paren, &m.params, &m.r_paren));
@@ -291,6 +281,25 @@ fn member_kind_doc(kind: &MemberKind) -> Doc {
         // itself is harmless to reprint.
         MemberKind::Empty(t) => tok(t),
     }
+}
+
+pub fn method_decl_doc(m: &MethodDecl) -> Doc {
+    let mut out = vec![
+        modifiers_doc(&m.modifiers),
+        type_doc(&m.return_type),
+        sp(),
+        qualified_name_doc(&m.name),
+    ];
+    if let Some(tp) = &m.type_params {
+        out.push(type_params_doc(tp));
+    }
+    out.push(params_doc(&m.l_paren, &m.params, &m.r_paren));
+    if let Some(t) = &m.throws {
+        out.push(throws_doc(t));
+    }
+    out.push(contracts_doc(&m.contracts));
+    out.push(body_doc(&m.body));
+    doc::concat(out)
 }
 
 fn type_decl_doc(t: &TypeDecl) -> Doc {
@@ -556,6 +565,21 @@ fn decl_body_doc(body: &DeclBody) -> Doc {
         token_text(&body.r_brace),
         doc::concat(trailing_docs(&body.r_brace.trailing)),
     ])
+}
+
+/// `[LEN]` on a declarator name.
+pub fn c_array_doc(array: &Option<CArraySuffix>) -> Doc {
+    match array {
+        None => doc::nil(),
+        Some(a) => {
+            let mut out = vec![tok(&a.l_bracket)];
+            if let Some(size) = &a.size {
+                out.push(expr::expr_doc(size));
+            }
+            out.push(tok(&a.r_bracket));
+            doc::concat(out)
+        }
+    }
 }
 
 /// ` = rhs` with Prettier assignment layout: hugging values attach directly,

@@ -61,7 +61,28 @@ impl<'a> Lexer<'a> {
             }
             let kind = self.scan_token();
             let text = self.cur.slice_from(offset).to_string();
-            let trailing = self.scan_trailing_trivia();
+            let mut trailing = self.scan_trailing_trivia();
+            // A trailing line comment on a token that doesn't end a
+            // syntactic unit (`;`, braces, `,`, `:`) would be reordered by
+            // the formatter's line-suffix machinery; relocate it to the next
+            // token's leading trivia so it prints on its own line instead.
+            if !matches!(
+                kind,
+                TokenKind::Semicolon
+                    | TokenKind::LBrace
+                    | TokenKind::RBrace
+                    | TokenKind::Comma
+                    | TokenKind::Colon
+            ) {
+                if let Some(idx) =
+                    trailing.iter().position(|t| t.kind == TriviaKind::LineComment)
+                {
+                    let moved: Vec<Trivia> = trailing.split_off(idx);
+                    let mut new_pending = moved;
+                    new_pending.append(&mut self.pending_leading);
+                    self.pending_leading = new_pending;
+                }
+            }
             self.tokens.push(Token { kind, text, offset, leading, trailing });
             leading = std::mem::take(&mut self.pending_leading);
             leading.extend(self.scan_trivia(false));
@@ -238,7 +259,8 @@ impl<'a> Lexer<'a> {
                 self.cur.bump();
                 match self.cur.peek() {
                     b'"' => self.scan_template_string(),
-                    b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.scan_ident(true),
+                    // Escaped identifiers may start with a digit: `@2BUTTON_PRESS`.
+                    b'a'..=b'z' | b'A'..=b'Z' | b'_' | b'0'..=b'9' => self.scan_ident(true),
                     _ => {
                         self.error(start, "stray '@'");
                         self.cur.bump_char();
@@ -322,6 +344,11 @@ impl<'a> Lexer<'a> {
                 self.cur.bump();
                 if self.cur.eat(b'?') {
                     QuestionQuestion
+                } else if self.cur.eat(b'.') {
+                    // Null-safe member access `a?.b`. A `?` directly followed
+                    // by `.` can't be anything else (`.5` literals and
+                    // leading-dot expressions don't exist in Vala).
+                    QuestionDot
                 } else {
                     Question
                 }
@@ -464,6 +491,28 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_number(&mut self) -> TokenKind {
+        // Identifier-like names that start with digits appear in real code
+        // (`GDesktop.ClockFormat.24H`, enum value `24HR`): if the digits run
+        // into identifier characters that don't form a numeric literal, lex
+        // the whole run as an identifier.
+        {
+            let mut n = 0;
+            while self.cur.peek_at(n).is_ascii_digit() {
+                n += 1;
+            }
+            let next = self.cur.peek_at(n);
+            let is_identish = matches!(next, b'a'..=b'z' | b'A'..=b'Z' | b'_')
+                && !matches!(next, b'x' | b'X' | b'e' | b'E' | b'u' | b'U' | b'l' | b'L' | b'f' | b'F' | b'd' | b'D');
+            if is_identish {
+                while matches!(
+                    self.cur.peek(),
+                    b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'_'
+                ) {
+                    self.cur.bump();
+                }
+                return TokenKind::Ident;
+            }
+        }
         if self.cur.peek() == b'0' && matches!(self.cur.peek_at(1), b'x' | b'X') {
             self.cur.bump();
             self.cur.bump();
@@ -620,10 +669,7 @@ impl<'a> Lexer<'a> {
                         self.cur.bump();
                         return TokenKind::TemplateStringLit;
                     }
-                    b'\n' => {
-                        self.error(start, "unterminated string template");
-                        return TokenKind::Error;
-                    }
+                    // valac tolerates raw newlines inside templates.
                     b'\\' => {
                         self.cur.bump();
                         self.cur.bump_char();
