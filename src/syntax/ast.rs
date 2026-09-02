@@ -677,7 +677,10 @@ pub enum Expr {
     },
     Member {
         base: Box<Expr>,
-        op: Token, // `.` or `->`
+        op: Token, // `.`, `->`, or `?.`
+        /// The `.` when null-safe access was written as two tokens (`? .`);
+        /// printed fused to `op` as `?.`.
+        op2: Option<Token>,
         name: Token,
         /// Explicit generic member reference `foo.bar<int>` (rare).
         type_args: Option<TypeArgList>,

@@ -249,7 +249,12 @@ fn binary_chain_doc(e: &Expr) -> Doc {
 // ---------------------------------------------------------------------------
 
 enum Link<'a> {
-    Member { op: &'a Token, name: &'a Token, type_args: &'a Option<TypeArgList> },
+    Member {
+        op: &'a Token,
+        op2: &'a Option<Token>,
+        name: &'a Token,
+        type_args: &'a Option<TypeArgList>,
+    },
     Call {
         type_args: &'a Option<TypeArgList>,
         l_paren: &'a Token,
@@ -271,8 +276,8 @@ enum Link<'a> {
 fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
     loop {
         match e {
-            Expr::Member { base, op, name, type_args } => {
-                links.push(Link::Member { op, name, type_args });
+            Expr::Member { base, op, op2, name, type_args } => {
+                links.push(Link::Member { op, op2, name, type_args });
                 e = base;
             }
             Expr::Call { callee, type_args, l_paren, args, r_paren, initializer } => {
@@ -327,11 +332,15 @@ fn chain_doc(e: &Expr) -> Doc {
     for (i, link) in links.iter().enumerate() {
         let target = if i < split_at { &mut chain_parts } else { &mut tail_parts };
         match link {
-            Link::Member { op, name, type_args } => {
+            Link::Member { op, op2, name, type_args } => {
                 if fluent && op.kind == TokenKind::Dot {
                     target.push(doc::softline());
                 }
                 target.push(tok(op));
+                if let Some(dot) = op2 {
+                    // `? .` in source prints fused as `?.`.
+                    target.push(tok(dot));
+                }
                 target.push(tok(name));
                 if let Some(args) = type_args {
                     target.push(type_args_doc(args));

@@ -374,10 +374,14 @@ impl Parser {
 
         let ty = self.parse_type()?;
         // A keyword followed by a disambiguating token reads as a member
-        // name: `public void foreach (...)`, `public PhotoID ref;`.
+        // name: `public void foreach (...)`, `public PhotoID ref;`,
+        // `public string namespace { get; }`.
         let name = if !self.at_ident()
             && matches!(self.kind(), K::Kw(_))
-            && matches!(self.nth_kind(1), K::LParen | K::Semicolon | K::Assign | K::LBracket)
+            && matches!(
+                self.nth_kind(1),
+                K::LParen | K::Semicolon | K::Assign | K::LBracket | K::LBrace
+            )
         {
             QualifiedName { global: None, parts: vec![self.bump()] }
         } else {
@@ -1497,6 +1501,22 @@ impl Parser {
         let mut expr = self.parse_primary()?;
         loop {
             match self.kind() {
+                // Null-safe access written with whitespace: `x ? .foo` —
+                // valac accepts it; an expression can never start with `.`,
+                // so this can't be a ternary.
+                K::Question if self.nth_kind(1) == K::Dot => {
+                    let op = self.bump();
+                    let op2 = Some(self.bump());
+                    let name = if matches!(self.kind(), K::Ident | K::Kw(_)) {
+                        self.bump()
+                    } else {
+                        return self.error(format!(
+                            "expected member name, found `{}`",
+                            self.describe()
+                        ));
+                    };
+                    expr = Expr::Member { base: Box::new(expr), op, op2, name, type_args: None };
+                }
                 K::Dot | K::Arrow | K::QuestionDot => {
                     let op = self.bump();
                     // After `.` any keyword reads unambiguously as a member
@@ -1522,7 +1542,7 @@ impl Parser {
                     } else {
                         None
                     };
-                    expr = Expr::Member { base: Box::new(expr), op, name, type_args };
+                    expr = Expr::Member { base: Box::new(expr), op, op2: None, name, type_args };
                 }
                 K::LParen => {
                     let l_paren = self.bump();

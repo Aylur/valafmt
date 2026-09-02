@@ -1,0 +1,23 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/keyword_names.vala
+---
+public class KeywordNames : Object {
+    public string namespace { owned get; set; }
+    public uint class {
+        get {
+            return proxy.class;
+        }
+    }
+    public abstract uint dynamic { get; }
+    public PhotoID ref;
+
+    public void access() {
+        var a = proxy.class + this.namespace.length;
+        var b = (obj.get_member("longPress")?.get_boolean()) ?? false;
+        var c = page?.get_page_name();
+        var d = maybe?.child?.name;
+    }
+}

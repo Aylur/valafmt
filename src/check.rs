@@ -51,7 +51,14 @@ fn significant_stream(tokens: &[Token]) -> Vec<Item> {
             push_trivia(&mut out, tr.kind, &tr.text);
         }
         if t.kind != TokenKind::Eof && !is_inert_trailing_comma(tokens, i) {
-            out.push(Item::Token(t.kind, t.text.clone()));
+            if t.kind == TokenKind::QuestionDot {
+                // `? .` in the input fuses to `?.` in the output; compare
+                // both spellings as the two-token form.
+                out.push(Item::Token(TokenKind::Question, "?".to_string()));
+                out.push(Item::Token(TokenKind::Dot, ".".to_string()));
+            } else {
+                out.push(Item::Token(t.kind, t.text.clone()));
+            }
         }
         for tr in &t.trailing {
             push_trivia(&mut out, tr.kind, &tr.text);
