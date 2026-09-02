@@ -1,0 +1,16 @@
+[package]
+name = "valafmt"
+version = "0.1.0"
+edition = "2021"
+description = "An opinionated, Prettier-style formatter for the Vala programming language"
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+insta = { version = "1", features = ["glob"] }
+
+[profile.dev.package.insta]
+opt-level = 3
