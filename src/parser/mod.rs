@@ -1297,9 +1297,10 @@ impl Parser {
                     let rhs = self.parse_shift()?;
                     lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
                 }
-                // Lone `>` is relational; `>` `>` adjacent is a shift and is
-                // handled one level down.
-                K::Gt if !(self.nth_kind(1) == K::Gt && self.next_adjacent()) => {
+                // Lone `>` is relational; `>` `>` adjacent is a shift
+                // (handled one level down) and `>` `>=` adjacent is `>>=`
+                // (handled by parse_assignment).
+                K::Gt if !(matches!(self.nth_kind(1), K::Gt | K::GtEq) && self.next_adjacent()) => {
                     let op = vec![self.bump()];
                     let rhs = self.parse_shift()?;
                     lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
@@ -1444,7 +1445,16 @@ impl Parser {
             match self.kind() {
                 K::Dot | K::Arrow => {
                     let op = self.bump();
-                    let name = self.expect_ident()?;
+                    // After `.` any keyword reads unambiguously as a member
+                    // name (`list.foreach`, `object.get`, ...).
+                    let name = if matches!(self.kind(), K::Ident | K::Kw(_)) {
+                        self.bump()
+                    } else {
+                        return self.error(format!(
+                            "expected member name, found `{}`",
+                            self.describe()
+                        ));
+                    };
                     // Generic member reference: `foo.bar<int> (...)`.
                     let type_args = if self.at(K::Lt) {
                         self.try_parse(|p| {
@@ -1464,7 +1474,39 @@ impl Parser {
                     let l_paren = self.bump();
                     let args = self.parse_args()?;
                     let r_paren = self.expect(K::RParen, "`)`")?;
-                    expr = Expr::Call { callee: Box::new(expr), l_paren, args, r_paren };
+                    expr = Expr::Call {
+                        callee: Box::new(expr),
+                        type_args: None,
+                        l_paren,
+                        args,
+                        r_paren,
+                    };
+                }
+                // Generic invocation on a bare callee: `f<int> (...)`.
+                K::Lt => {
+                    let type_args = self.try_parse(|p| {
+                        let args = p.parse_type_arg_list()?;
+                        if p.at(K::LParen) {
+                            Ok(args)
+                        } else {
+                            p.error("not a generic invocation")
+                        }
+                    });
+                    match type_args {
+                        Some(type_args) => {
+                            let l_paren = self.bump();
+                            let args = self.parse_args()?;
+                            let r_paren = self.expect(K::RParen, "`)`")?;
+                            expr = Expr::Call {
+                                callee: Box::new(expr),
+                                type_args: Some(type_args),
+                                l_paren,
+                                args,
+                                r_paren,
+                            };
+                        }
+                        None => return Ok(expr),
+                    }
                 }
                 K::LBracket => {
                     let l_bracket = self.bump();

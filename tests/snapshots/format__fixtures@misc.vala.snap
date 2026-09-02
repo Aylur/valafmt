@@ -1,0 +1,70 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/misc.vala
+---
+public class Misc : Object {
+    private static Once<Misc> instance;
+    public class uint class_counter;
+
+    construct {
+        setup();
+    }
+
+    static construct {
+        class_init();
+    }
+
+    ~Misc() {
+        teardown();
+    }
+
+    public void locking() {
+        lock (counter) {
+            counter++;
+        }
+    }
+
+    public void errors() {
+        try {
+            risky();
+        } catch (IOError e) {
+            warning("io: %s", e.message);
+        } catch (Error e) {
+            warning("other: %s", e.message);
+        } finally {
+            cleanup();
+        }
+    }
+
+    public void arrays() {
+        int[] fixed = { 1, 2, 3 };
+        var multi = new int[3, 4];
+        weak Widget w = strong;
+        unowned string s = name;
+        Widget* raw = &widget;
+    }
+
+    public void methods(out int result, ref int state, owned string text) {
+        result = state;
+        method(out result, ref state);
+    }
+}
+
+public struct Point {
+    public double x;
+    public double y;
+
+    public Point(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+public interface Serializable : Object {
+    public abstract string serialize();
+    public virtual string pretty() {
+        return serialize();
+    }
+}

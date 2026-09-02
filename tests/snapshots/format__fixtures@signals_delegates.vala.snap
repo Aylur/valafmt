@@ -1,0 +1,19 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/signals_delegates.vala
+---
+public delegate bool Filter(int item);
+public delegate void Callback() throws Error;
+
+public class Emitter : Object {
+    public signal void changed(int new_value);
+    public virtual signal void done() {
+        cleanup();
+    }
+
+    public void fire() {
+        changed(42);
+    }
+}

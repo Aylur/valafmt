@@ -1,0 +1,14 @@
+public class Prop : Object {
+    public int simple { get; set; }
+    public string name { get; private set; default = "unnamed"; }
+    public owned string owned_prop { owned get; set construct; }
+    public int computed {
+        get {
+            return backing * 2;
+        }
+        set {
+            backing = value / 2;
+        }
+    }
+    public bool flag { get; construct set; default = true; }
+}

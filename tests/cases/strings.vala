@@ -1,0 +1,10 @@
+void strings() {
+    var plain = "hello \"world\"";
+    var tmpl = @"count = $(count + 1), name = $name";
+    var verbatim = """no \escapes
+here "quotes" ok""";
+    var vt = @"""template $(x) verbatim""";
+    var re = /^[a-z]+\/?$/i;
+    var c = '\n';
+    unichar u = 'x';
+}

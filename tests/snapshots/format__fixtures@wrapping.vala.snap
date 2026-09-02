@@ -1,0 +1,42 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/wrapping.vala
+---
+void wrapping() {
+    var result = some_object.some_method_with_long_name(
+        first_argument,
+        second_argument,
+        third_argument,
+        fourth_argument
+    );
+    var chained = builder
+        .add_first_component()
+        .add_second_component()
+        .add_third_component()
+        .add_fourth_component()
+        .build();
+    var condition_result =
+        first_long_condition_value &&
+        second_long_condition_value &&
+        third_long_condition_value &&
+        fourth_value;
+    var ternary_result = some_long_condition_expression
+        ? quite_long_result_when_true
+        : quite_long_result_when_false_case;
+    string concatenated =
+        "first long segment of text " +
+        "second long segment of text " +
+        "third long segment of text";
+}
+
+public class LongDecl : Object {
+    public void method_with_many_parameters(
+        string first_param,
+        int second_param,
+        double third_param,
+        bool fourth_param,
+        Object fifth_param
+    ) {}
+}

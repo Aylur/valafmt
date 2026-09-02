@@ -664,6 +664,9 @@ pub enum Expr {
     },
     Call {
         callee: Box<Expr>,
+        /// `f<int> (...)` on a bare callee (member callees carry their type
+        /// args on the Member node instead).
+        type_args: Option<TypeArgList>,
         l_paren: Token,
         args: Punctuated<Arg>,
         r_paren: Token,

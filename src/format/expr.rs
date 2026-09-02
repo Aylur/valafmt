@@ -14,12 +14,39 @@ fn sp() -> Doc {
 }
 
 /// Values that attach directly after `=` instead of breaking with an indent:
-/// lambdas, object creation, and initializer lists format their own bodies.
+/// anything that can break internally in a useful way (lambdas, object
+/// creation, initializer lists, calls and call chains, ternaries) plus plain
+/// atoms. Binary chains and other operators break after the `=` instead,
+/// matching Prettier's assignment layout.
 pub fn hugs_assignment(e: &Expr) -> bool {
-    matches!(
-        e,
-        Expr::Lambda { .. } | Expr::New { .. } | Expr::Initializer(_) | Expr::Atom(_)
-    ) || matches!(e, Expr::Yield { expr, .. } if hugs_assignment(expr))
+    match e {
+        Expr::Lambda { .. }
+        | Expr::New { .. }
+        | Expr::Initializer(_)
+        | Expr::Atom(_)
+        | Expr::Global { .. }
+        | Expr::Ternary { .. } => true,
+        Expr::Yield { expr, .. } => hugs_assignment(expr),
+        // Postfix chains hug only when they contain a call (otherwise there
+        // is nowhere for them to break and the `=` break is the only option).
+        Expr::Call { .. } => true,
+        Expr::Member { base, .. }
+        | Expr::Index { base, .. }
+        | Expr::Slice { base, .. }
+        | Expr::PostfixIncDec { base, .. } => spine_has_call(base),
+        _ => false,
+    }
+}
+
+fn spine_has_call(e: &Expr) -> bool {
+    match e {
+        Expr::Call { .. } => true,
+        Expr::Member { base, .. }
+        | Expr::Index { base, .. }
+        | Expr::Slice { base, .. }
+        | Expr::PostfixIncDec { base, .. } => spine_has_call(base),
+        _ => false,
+    }
 }
 
 pub fn expr_doc(e: &Expr) -> Doc {
@@ -199,17 +226,17 @@ fn binary_chain_doc(e: &Expr) -> Doc {
         cur = lhs;
     }
     rest.reverse();
+    // No extra indent on continuations: the enclosing construct (assignment
+    // break, condition parens) provides the indentation, as in Prettier.
     let mut out = vec![expr_doc(cur)];
-    let mut tail = Vec::new();
     for (op, rhs) in rest {
-        tail.push(sp());
+        out.push(sp());
         for t in op.iter() {
-            tail.push(tok(t));
+            out.push(tok(t));
         }
-        tail.push(doc::line());
-        tail.push(expr_doc(rhs));
+        out.push(doc::line());
+        out.push(expr_doc(rhs));
     }
-    out.push(doc::indent(doc::concat(tail)));
     doc::concat(out)
 }
 
@@ -219,7 +246,12 @@ fn binary_chain_doc(e: &Expr) -> Doc {
 
 enum Link<'a> {
     Member { op: &'a Token, name: &'a Token, type_args: &'a Option<TypeArgList> },
-    Call { l_paren: &'a Token, args: &'a Punctuated<Arg>, r_paren: &'a Token },
+    Call {
+        type_args: &'a Option<TypeArgList>,
+        l_paren: &'a Token,
+        args: &'a Punctuated<Arg>,
+        r_paren: &'a Token,
+    },
     Index { l_bracket: &'a Token, indices: &'a Punctuated<Expr>, r_bracket: &'a Token },
     Slice {
         l_bracket: &'a Token,
@@ -238,8 +270,8 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
                 links.push(Link::Member { op, name, type_args });
                 e = base;
             }
-            Expr::Call { callee, l_paren, args, r_paren } => {
-                links.push(Link::Call { l_paren, args, r_paren });
+            Expr::Call { callee, type_args, l_paren, args, r_paren } => {
+                links.push(Link::Call { type_args, l_paren, args, r_paren });
                 e = callee;
             }
             Expr::Index { base, l_bracket, indices, r_bracket } => {
@@ -300,7 +332,10 @@ fn chain_doc(e: &Expr) -> Doc {
                     target.push(type_args_doc(args));
                 }
             }
-            Link::Call { l_paren, args, r_paren } => {
+            Link::Call { type_args, l_paren, args, r_paren } => {
+                if let Some(ta) = type_args {
+                    target.push(type_args_doc(ta));
+                }
                 if huggable_last_arg(args) {
                     target.push(hugged_call_args_doc(l_paren, args, r_paren));
                 } else {

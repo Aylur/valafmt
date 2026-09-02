@@ -1,0 +1,21 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/async.vala
+---
+public class Loader : Object {
+    public async string fetch(string url) throws IOError {
+        var session = new Session();
+        var result = yield session.get_async(url);
+        yield;
+        return result;
+    }
+
+    public void start() {
+        fetch.begin("http://example.com", (obj, res) => {
+            var data = fetch.end(res);
+            print("%s\n", data);
+        });
+    }
+}

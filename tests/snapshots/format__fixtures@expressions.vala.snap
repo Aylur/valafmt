@@ -1,0 +1,37 @@
+---
+source: tests/format.rs
+assertion_line: 20
+expression: out
+input_file: tests/cases/expressions.vala
+---
+void exprs() {
+    var a = b + c * d - e / f % g;
+    var h = x ?? y ?? z;
+    var t = cond ? yes : no;
+    var n = (int) value;
+    var o = obj as Widget;
+    var p = obj is Widget;
+    var q = item in list;
+    var s = arr[1:4];
+    var s2 = arr[:4];
+    var s3 = arr[1:];
+    var idx = matrix[i, j];
+    var sh = bits << 2 | bits >> 3;
+    var neg = -x + ~mask & !flag;
+    var ptr = &val;
+    var deref = *ptr;
+    var pm = obj->field;
+    x += 1;
+    x <<= 2;
+    x >>= 2;
+    i++;
+    --j;
+    var nn = (!) maybe;
+    var ow = (owned) resource;
+    var arr2 = new int[10];
+    var arr3 = new int[,] { { 1, 2 }, { 3, 4 } };
+    var init = new Point() { x = 1, y = 2 };
+    var tp = typeof(Widget);
+    var sz = sizeof(int);
+    var g2 = global::Posix.getpid();
+}
