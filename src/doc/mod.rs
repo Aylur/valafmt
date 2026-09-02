@@ -39,6 +39,10 @@ pub enum Doc {
     LineSuffix(Box<Doc>),
     /// Forces enclosing groups to break, no output of its own.
     BreakParent,
+    /// A preprocessor directive line: printed at column 0 on its own line,
+    /// forcing enclosing groups to break. The caller emits the line break
+    /// that follows it.
+    Directive(String),
 }
 
 pub fn text(s: impl Into<Cow<'static, str>>) -> Doc {
@@ -91,6 +95,10 @@ pub fn line_suffix(doc: Doc) -> Doc {
 
 pub fn break_parent() -> Doc {
     Doc::BreakParent
+}
+
+pub fn directive(s: impl Into<String>) -> Doc {
+    Doc::Directive(s.into())
 }
 
 pub fn nil() -> Doc {

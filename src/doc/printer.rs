@@ -64,6 +64,7 @@ fn propagate_breaks(doc: &Doc) -> (Doc, bool) {
             (Doc::LineSuffix(Box::new(d)), false)
         }
         Doc::BreakParent => (Doc::BreakParent, true),
+        Doc::Directive(s) => (Doc::Directive(s.clone()), true),
     }
 }
 
@@ -142,6 +143,16 @@ impl<'a> Printer<'a> {
                     self.line_suffixes.push((ind, Mode::Flat, inner));
                 }
                 Doc::BreakParent => {}
+                Doc::Directive(s) => {
+                    self.flush_suffixes();
+                    // Move to the start of a fresh line, then print at col 0.
+                    trim_trailing_spaces(&mut self.out);
+                    if !(self.out.is_empty() || self.out.ends_with('\n')) {
+                        self.out.push('\n');
+                    }
+                    self.out.push_str(s);
+                    self.col = str_width(s);
+                }
             }
         }
         // Flush any suffixes that never met a newline (end of document).
@@ -234,6 +245,7 @@ impl<'a> Printer<'a> {
                 }
                 Doc::LineSuffix(_) => {}
                 Doc::BreakParent => {}
+                Doc::Directive(_) => return true,
             }
             if remaining < 0 {
                 return false;
@@ -252,7 +264,7 @@ fn render_flat(doc: &Doc) -> String {
             Doc::Concat(children) => stack.extend(children.iter().rev()),
             Doc::Group { doc, .. } | Doc::Indent(doc) | Doc::LineSuffix(doc) => stack.push(doc),
             Doc::Line => out.push(' '),
-            Doc::SoftLine | Doc::HardLine | Doc::BreakParent => {}
+            Doc::SoftLine | Doc::HardLine | Doc::BreakParent | Doc::Directive(_) => {}
             Doc::IfBreak { flat, .. } => stack.push(flat),
         }
     }

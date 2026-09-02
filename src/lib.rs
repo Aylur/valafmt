@@ -1,6 +1,10 @@
+pub mod check;
 pub mod doc;
+pub mod format;
 pub mod lexer;
 pub mod options;
+pub mod parser;
+pub mod syntax;
 
 pub use options::Options;
 
@@ -51,11 +55,17 @@ pub(crate) fn diagnostics_from_lex(src: &str, errors: &[lexer::LexError]) -> Vec
 
 /// Format Vala source text. Returns the formatted text, or an error if the
 /// input does not parse or the internal safety check fails.
-pub fn format_source(src: &str, _options: &Options) -> Result<String, FormatError> {
+pub fn format_source(src: &str, options: &Options) -> Result<String, FormatError> {
     let lexed = lexer::lex(src);
     if !lexed.errors.is_empty() {
         return Err(FormatError::Parse(diagnostics_from_lex(src, &lexed.errors)));
     }
-    // Parser + printer land in later milestones; for now this is lex-only.
-    unimplemented!("formatting is implemented in milestone M3")
+    let file = parser::parse(lexed.tokens).map_err(|e| {
+        let (line, col) = lexer::cursor::Cursor::line_col(src, e.offset);
+        FormatError::Parse(vec![Diagnostic { offset: e.offset, line, col, message: e.message }])
+    })?;
+    let doc = format::format_file(&file);
+    let output = doc::printer::print(&doc, options);
+    check::verify(src, &output).map_err(FormatError::SafetyCheck)?;
+    Ok(output)
 }
