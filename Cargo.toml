@@ -2,7 +2,7 @@
 name = "valafmt"
 version = "0.1.0"
 edition = "2021"
-description = "An opinionated, Prettier-style formatter for the Vala programming language"
+description = "An opinionated code formatter for the Vala programming language"
 license = "MIT"
 
 [dependencies]
