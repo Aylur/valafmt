@@ -1,3 +1,4 @@
+pub mod doc;
 pub mod lexer;
 pub mod options;
 
