@@ -5,7 +5,7 @@ fn main() {
     if no_check {
         let lexed = valafmt::lexer::lex(&src);
         let file = valafmt::parser::parse(lexed.tokens).unwrap();
-        let doc = valafmt::format::format_file(&file);
+        let doc = valafmt::format::format_file(&file, &src);
         let out = valafmt::doc::printer::print(&doc, &valafmt::Options::default());
         print!("{out}");
         return;

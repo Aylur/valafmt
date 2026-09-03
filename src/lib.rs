@@ -71,7 +71,7 @@ pub fn format_source(src: &str, options: &Options) -> Result<String, FormatError
         }
         FormatError::Parse(vec![Diagnostic { offset: e.offset, line, col, message }])
     })?;
-    let doc = format::format_file(&file);
+    let doc = format::format_file(&file, src);
     let output = doc::printer::print(&doc, options);
     check::verify(src, &output).map_err(FormatError::SafetyCheck)?;
     Ok(output)

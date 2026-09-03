@@ -113,7 +113,7 @@ impl<'a> Lexer<'a> {
                     if saw_newline {
                         at_line_start = true;
                     }
-                    out.push(Trivia {
+                    out.push(Trivia { offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
@@ -121,21 +121,21 @@ impl<'a> Lexer<'a> {
                 0xEF if self.cur.starts_with("\u{FEFF}") => {
                     // Byte-order mark: fold into whitespace trivia.
                     self.cur.bump_char();
-                    out.push(Trivia {
+                    out.push(Trivia { offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'/' => {
                     self.scan_line_comment();
-                    out.push(Trivia {
+                    out.push(Trivia { offset: start,
                         kind: TriviaKind::LineComment,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'*' => {
                     let kind = self.scan_block_comment();
-                    out.push(Trivia { kind, text: self.cur.slice_from(start).to_string() });
+                    out.push(Trivia { kind, text: self.cur.slice_from(start).to_string(), offset: start });
                 }
                 b'#' if at_line_start => {
                     while !self.cur.is_eof() && self.cur.peek() != b'\n' {
@@ -148,11 +148,15 @@ impl<'a> Lexer<'a> {
                         // Give the '\r' back so it joins the following
                         // whitespace run and round-tripping stays byte-exact.
                         // (Cursor cannot rewind; emit it as its own run.)
-                        out.push(Trivia { kind: TriviaKind::Directive, text });
-                        out.push(Trivia { kind: TriviaKind::Whitespace, text: "\r".into() });
+                        out.push(Trivia { kind: TriviaKind::Directive, text, offset: start });
+                        out.push(Trivia {
+                            kind: TriviaKind::Whitespace,
+                            text: "\r".into(),
+                            offset: self.cur.pos().saturating_sub(1),
+                        });
                         continue;
                     }
-                    out.push(Trivia { kind: TriviaKind::Directive, text });
+                    out.push(Trivia { kind: TriviaKind::Directive, text, offset: start });
                 }
                 _ => break,
             }
@@ -180,14 +184,14 @@ impl<'a> Lexer<'a> {
                     for _ in 0..n {
                         self.cur.bump();
                     }
-                    out.push(Trivia {
+                    out.push(Trivia { offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'/' => {
                     self.scan_line_comment();
-                    out.push(Trivia {
+                    out.push(Trivia { offset: start,
                         kind: TriviaKind::LineComment,
                         text: self.cur.slice_from(start).to_string(),
                     });
@@ -199,10 +203,10 @@ impl<'a> Lexer<'a> {
                     let kind = self.scan_block_comment();
                     let text = self.cur.slice_from(save).to_string();
                     if text.contains('\n') {
-                        self.pending_leading.push(Trivia { kind, text });
+                        self.pending_leading.push(Trivia { kind, text, offset: save });
                         break;
                     }
-                    out.push(Trivia { kind, text });
+                    out.push(Trivia { kind, text, offset: save });
                 }
                 _ => break,
             }

@@ -12,14 +12,8 @@ fn sp() -> Doc {
 }
 
 pub fn block_doc(b: &Block) -> Doc {
-    let mut inner = Vec::new();
-    for (i, s) in b.statements.iter().enumerate() {
-        inner.push(doc::hardline());
-        if i > 0 && blank_line_before(s.first_token()) {
-            inner.push(doc::hardline());
-        }
-        inner.push(stmt_doc(s));
-    }
+    let mut inner =
+        super::item_list_docs(&b.statements, &b.r_brace, true, |s| s.first_token(), stmt_doc);
     for p in leading_parts(&b.r_brace.leading) {
         inner.push(doc::hardline());
         inner.push(p);
@@ -317,14 +311,17 @@ fn switch_doc(sw: &SwitchStmt) -> Doc {
             inner.push(block_doc(b));
             rest = &rest[1..];
         }
-        let mut stmts = Vec::new();
-        for (k, s) in rest.iter().enumerate() {
-            stmts.push(doc::hardline());
-            if k > 0 && blank_line_before(s.first_token()) {
-                stmts.push(doc::hardline());
-            }
-            stmts.push(stmt_doc(s));
-        }
+        // The next section's first label (or the switch `}`) bounds any
+        // valafmt-ignore region inside this section.
+        let closer = sw
+            .sections
+            .get(i + 1)
+            .map(|next| match &next.labels[0] {
+                SwitchLabel::Case { case_kw, .. } => case_kw,
+                SwitchLabel::Default { default_kw, .. } => default_kw,
+            })
+            .unwrap_or(&sw.r_brace);
+        let stmts = super::item_list_docs(rest, closer, true, |s| s.first_token(), stmt_doc);
         inner.push(doc::indent(doc::concat(stmts)));
     }
     for p in leading_parts(&sw.r_brace.leading) {

@@ -284,6 +284,8 @@ pub enum TriviaKind {
 pub struct Trivia {
     pub kind: TriviaKind,
     pub text: String,
+    /// Byte offset of this trivia in the original source.
+    pub offset: usize,
 }
 
 impl Trivia {

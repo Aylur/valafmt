@@ -21,18 +21,18 @@ such files rather than guessing. In the corpus this affects ~0.3% of files.
 ## Building
 
 ```sh
-cargo build --release        # binary in target/release/valafmt
+cargo build --release # binary in target/release/valafmt
 ```
 
-## TODO:
+## Ignoring code
 
-### Ignore
-
-```
+```vala
 // valafmt-ignore
-
-
-// valafmt-ignore:start
-
-// valafmt-ignore:end
+var mx = matrix(
+  1, 0, 0,
+  0, 1, 0,
+  0, 0, 1,
+);
 ```
+
+You can also mark a range with `valafmt-ignore-start` and `valafmt-ignore-end`

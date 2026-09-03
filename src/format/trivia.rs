@@ -138,3 +138,86 @@ pub fn blank_line_before(t: &Token) -> bool {
 pub fn has_leading_pieces(t: &Token) -> bool {
     t.leading.iter().any(|tr| tr.is_comment() || tr.kind == TriviaKind::Directive)
 }
+
+// ---------------------------------------------------------------------------
+// valafmt-ignore markers
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IgnoreMarker {
+    /// `valafmt-ignore` — the next statement/member is printed verbatim.
+    Ignore,
+    /// `valafmt-ignore-start` — verbatim until `valafmt-ignore-end`.
+    Start,
+    /// `valafmt-ignore-end`
+    End,
+}
+
+/// Recognize an ignore marker comment: `// valafmt-ignore[-start|-end]` or
+/// the `/* ... */` form, with nothing else in the comment.
+pub fn marker_of(tr: &Trivia) -> Option<IgnoreMarker> {
+    if !tr.is_comment() {
+        return None;
+    }
+    let t = tr.text.trim();
+    let body = t
+        .strip_prefix("//")
+        .map(str::trim)
+        .or_else(|| t.strip_prefix("/*").and_then(|s| s.strip_suffix("*/")).map(str::trim))?;
+    match body {
+        "valafmt-ignore" => Some(IgnoreMarker::Ignore),
+        "valafmt-ignore-start" => Some(IgnoreMarker::Start),
+        "valafmt-ignore-end" => Some(IgnoreMarker::End),
+        _ => None,
+    }
+}
+
+/// An `Ignore` or `Start` marker in this token's leading trivia, with the
+/// byte offset just past the marker comment (where verbatim output begins).
+pub fn leading_ignore_marker(t: &Token) -> Option<(IgnoreMarker, usize)> {
+    for tr in &t.leading {
+        match marker_of(tr) {
+            Some(m @ (IgnoreMarker::Ignore | IgnoreMarker::Start)) => {
+                return Some((m, tr.offset + tr.text.len()));
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+pub fn has_end_marker(t: &Token) -> bool {
+    t.leading.iter().any(|tr| marker_of(tr) == Some(IgnoreMarker::End))
+}
+
+/// Byte offset where this token's node begins in the source, i.e. the start
+/// of its leading trivia.
+pub fn node_start(t: &Token) -> usize {
+    t.offset - t.leading.iter().map(|tr| tr.text.len()).sum::<usize>()
+}
+
+/// Like `leading_parts`, but stops after (and includes) the first
+/// Ignore/Start marker comment.
+pub fn leading_parts_until_marker(leading: &[Trivia]) -> Vec<Doc> {
+    let mut parts = Vec::new();
+    let mut pending_newlines = 0usize;
+    for tr in leading {
+        match tr.kind {
+            TriviaKind::Whitespace => pending_newlines += tr.newlines(),
+            TriviaKind::LineComment | TriviaKind::BlockComment | TriviaKind::DocComment => {
+                push_gap(&mut parts, pending_newlines);
+                pending_newlines = 0;
+                parts.push(comment_doc(tr));
+                if matches!(marker_of(tr), Some(IgnoreMarker::Ignore | IgnoreMarker::Start)) {
+                    break;
+                }
+            }
+            TriviaKind::Directive => {
+                push_gap(&mut parts, pending_newlines);
+                pending_newlines = 0;
+                parts.push(doc::directive(tr.text.trim_end().to_string()));
+            }
+        }
+    }
+    parts
+}

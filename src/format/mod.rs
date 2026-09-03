@@ -9,19 +9,27 @@ pub mod trivia;
 use crate::doc::{self, Doc};
 use crate::lexer::token::Token;
 use crate::syntax::ast::*;
+use std::cell::RefCell;
 use trivia::{blank_line_before, leading_parts, tok, token_text, trailing_docs};
 
-pub fn format_file(file: &File) -> Doc {
-    let mut out = Vec::new();
-    for (i, member) in file.members.iter().enumerate() {
-        if i > 0 {
-            out.push(doc::hardline());
-            if blank_line_before(member.first_token()) {
-                out.push(doc::hardline());
-            }
-        }
-        out.push(member_doc(member));
-    }
+thread_local! {
+    /// The source being formatted, for verbatim `valafmt-ignore` slices.
+    static SOURCE: RefCell<String> = const { RefCell::new(String::new()) };
+}
+
+fn src_slice(start: usize, end: usize) -> String {
+    SOURCE.with(|s| s.borrow()[start..end].to_string())
+}
+
+pub fn format_file(file: &File, src: &str) -> Doc {
+    SOURCE.with(|s| *s.borrow_mut() = src.to_string());
+    let mut out = item_list_docs(
+        &file.members,
+        &file.eof,
+        false,
+        |m| m.first_token(),
+        member_doc,
+    );
     // End-of-file comments live on the EOF token.
     for p in leading_parts(&file.eof.leading) {
         out.push(doc::hardline());
@@ -31,6 +39,68 @@ pub fn format_file(file: &File) -> Doc {
         out.push(doc::hardline()); // final newline
     }
     doc::concat(out)
+}
+
+/// Format a member/statement list with support for `valafmt-ignore` (next
+/// item verbatim) and `valafmt-ignore-start` / `valafmt-ignore-end` (items in
+/// between verbatim). `closer` is the token that ends the list (`}` or EOF);
+/// `hardline_before_first` matches block-style lists where every item starts
+/// on a fresh line.
+pub(crate) fn item_list_docs<'a, T>(
+    items: &'a [T],
+    closer: &Token,
+    hardline_before_first: bool,
+    first_token: impl Fn(&'a T) -> &'a Token,
+    make_doc: impl Fn(&'a T) -> Doc,
+) -> Vec<Doc> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < items.len() {
+        let ft = first_token(&items[i]);
+        if i > 0 {
+            out.push(doc::hardline());
+            if blank_line_before(ft) {
+                out.push(doc::hardline());
+            }
+        } else if hardline_before_first {
+            out.push(doc::hardline());
+        }
+        match trivia::leading_ignore_marker(ft) {
+            Some((marker, after_marker)) => {
+                // Comments up to and including the marker print normally; the
+                // verbatim slice supplies its own leading newline.
+                let pieces = trivia::leading_parts_until_marker(&ft.leading);
+                let last = pieces.len().saturating_sub(1);
+                for (idx, p) in pieces.into_iter().enumerate() {
+                    out.push(p);
+                    if idx != last {
+                        out.push(doc::hardline());
+                    }
+                }
+                // The region ends at the next item leading a
+                // `valafmt-ignore-end` (for -start), or at the next item (for
+                // plain ignore); the list closer bounds either.
+                let mut j = i + 1;
+                if marker == trivia::IgnoreMarker::Start {
+                    while j < items.len() && !trivia::has_end_marker(first_token(&items[j])) {
+                        j += 1;
+                    }
+                }
+                let end = if j < items.len() {
+                    trivia::node_start(first_token(&items[j]))
+                } else {
+                    trivia::node_start(closer)
+                };
+                out.push(doc::literal(src_slice(after_marker, end)));
+                i = j;
+            }
+            None => {
+                out.push(make_doc(&items[i]));
+                i += 1;
+            }
+        }
+    }
+    out
 }
 
 fn sp() -> Doc {
@@ -593,14 +663,8 @@ fn accessor_body_doc(body: &Body) -> Doc {
 }
 
 fn decl_body_doc(body: &DeclBody) -> Doc {
-    let mut inner = Vec::new();
-    for (i, m) in body.members.iter().enumerate() {
-        inner.push(doc::hardline());
-        if i > 0 && blank_line_before(m.first_token()) {
-            inner.push(doc::hardline());
-        }
-        inner.push(member_doc(m));
-    }
+    let mut inner =
+        item_list_docs(&body.members, &body.r_brace, true, |m| m.first_token(), member_doc);
     for p in leading_parts(&body.r_brace.leading) {
         inner.push(doc::hardline());
         inner.push(p);
