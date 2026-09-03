@@ -72,25 +72,24 @@ pub fn expr_doc(e: &Expr) -> Doc {
             out.push(expr_doc(expr));
             doc::concat(out)
         }
+        // No space after cast-like prefix operators: `(int)x`, `(!)x`,
+        // `(owned)x`.
         Expr::Cast { l_paren, ty, r_paren, expr } => doc::concat(vec![
             tok(l_paren),
             type_doc(ty),
             tok(r_paren),
-            sp(),
             expr_doc(expr),
         ]),
         Expr::NonNullCast { l_paren, bang, r_paren, expr } => doc::concat(vec![
             tok(l_paren),
             tok(bang),
             tok(r_paren),
-            sp(),
             expr_doc(expr),
         ]),
         Expr::OwnershipTransfer { l_paren, owned_kw, r_paren, expr } => doc::concat(vec![
             tok(l_paren),
             tok(owned_kw),
             tok(r_paren),
-            sp(),
             expr_doc(expr),
         ]),
         Expr::Binary { .. } => doc::group(binary_chain_doc(e)),

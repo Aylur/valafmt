@@ -18,6 +18,6 @@ public class Box<T, U> : Object {
     public U second;
 
     public V transform<V>(T input) {
-        return (V) input;
+        return (V)input;
     }
 }
