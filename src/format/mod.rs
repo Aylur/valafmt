@@ -412,9 +412,18 @@ fn property_doc(p: &PropertyDecl) -> Doc {
         qualified_name_doc(&p.name),
         sp(),
     ];
-    // `{ get; set; }` stays inline when all accessors are bodyless and fit;
-    // any block body forces one accessor per line.
+    // `{ get; set; }` stays inline when the source wrote it inline and it
+    // fits; a newline after `{` in the source (or a multi-line accessor
+    // body) keeps the property expanded.
     let mut inner = Vec::new();
+    let first_inner_token = p
+        .accessors
+        .first()
+        .map(property_accessor_first_token)
+        .unwrap_or(&p.r_brace);
+    if first_inner_token.leading_newlines() > 0 {
+        inner.push(doc::break_parent());
+    }
     for acc in &p.accessors {
         inner.push(doc::line());
         inner.push(property_accessor_doc(acc));
@@ -433,6 +442,17 @@ fn property_doc(p: &PropertyDecl) -> Doc {
     doc::concat(out)
 }
 
+fn property_accessor_first_token(acc: &PropertyAccessor) -> &Token {
+    match acc {
+        PropertyAccessor::Accessor { attributes, modifiers, keywords, .. } => attributes
+            .first()
+            .map(|a| &a.l_bracket)
+            .or_else(|| modifiers.first())
+            .unwrap_or(&keywords[0]),
+        PropertyAccessor::Default { default_kw, .. } => default_kw,
+    }
+}
+
 fn property_accessor_doc(acc: &PropertyAccessor) -> Doc {
     match acc {
         PropertyAccessor::Accessor { attributes, modifiers, keywords, body } => {
@@ -448,7 +468,7 @@ fn property_accessor_doc(acc: &PropertyAccessor) -> Doc {
                 }
                 out.push(tok(kw));
             }
-            out.push(body_doc(body));
+            out.push(accessor_body_doc(body));
             doc::concat(out)
         }
         PropertyAccessor::Default { default_kw, eq, expr: e, semicolon } => doc::concat(vec![
@@ -540,6 +560,31 @@ fn body_doc(body: &Body) -> Doc {
         Body::Block(b) => doc::concat(vec![sp(), stmt::block_doc(b)]),
         Body::Semicolon(t) => tok(t),
     }
+}
+
+/// Accessor body (`get`/`set`/`construct`): a single-statement block that the
+/// source wrote on one line stays inline (`get { return x; }`); a newline
+/// anywhere inside it in the source keeps it expanded.
+fn accessor_body_doc(body: &Body) -> Doc {
+    let Body::Block(b) = body else { return body_doc(body) };
+    let inline_eligible = b.statements.len() == 1
+        && b.statements[0].first_token().leading_newlines() == 0
+        && !trivia::has_leading_pieces(b.statements[0].first_token())
+        && b.r_brace.leading_newlines() == 0
+        && !trivia::has_leading_pieces(&b.r_brace);
+    if !inline_eligible {
+        return body_doc(body);
+    }
+    doc::concat(vec![
+        sp(),
+        doc::group(doc::concat(vec![
+            tok(&b.l_brace),
+            doc::indent(doc::concat(vec![doc::line(), stmt::stmt_doc(&b.statements[0])])),
+            doc::line(),
+            token_text(&b.r_brace),
+            doc::concat(trailing_docs(&b.r_brace.trailing)),
+        ])),
+    ])
 }
 
 fn decl_body_doc(body: &DeclBody) -> Doc {

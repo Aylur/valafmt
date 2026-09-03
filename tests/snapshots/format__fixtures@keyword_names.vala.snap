@@ -6,11 +6,7 @@ input_file: tests/cases/keyword_names.vala
 ---
 public class KeywordNames : Object {
     public string namespace { owned get; set; }
-    public uint class {
-        get {
-            return proxy.class;
-        }
-    }
+    public uint class { get { return proxy.class; } }
     public abstract uint dynamic { get; }
     public PhotoID ref;
 
