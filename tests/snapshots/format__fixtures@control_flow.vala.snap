@@ -48,3 +48,20 @@ void flow(int x) {
             break;
     }
 }
+
+void case_blocks(string type) {
+    switch (type) {
+        case "int": {
+            hints.set(name, new Variant.int32(int.parse(parts[2])));
+            return;
+        }
+        case "double": {
+            set_double();
+            break;
+        }
+        case "scoped": {
+            var tmp = 1;
+        }
+            break;
+    }
+}

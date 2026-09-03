@@ -309,8 +309,16 @@ fn switch_doc(sw: &SwitchStmt) -> Doc {
                 }
             }
         }
+        // A section whose body starts with a block keeps the `{` on the
+        // label line: `case "int": {`.
+        let mut rest = section.statements.as_slice();
+        if let Some(Stmt::Block(b)) = rest.first() {
+            inner.push(sp());
+            inner.push(block_doc(b));
+            rest = &rest[1..];
+        }
         let mut stmts = Vec::new();
-        for (k, s) in section.statements.iter().enumerate() {
+        for (k, s) in rest.iter().enumerate() {
             stmts.push(doc::hardline());
             if k > 0 && blank_line_before(s.first_token()) {
                 stmts.push(doc::hardline());

@@ -23,3 +23,35 @@ such files rather than guessing. In the corpus this affects ~0.3% of files.
 ```sh
 cargo build --release        # binary in target/release/valafmt
 ```
+
+## TODO:
+
+```
+opening braces after case in switch blocks should be on the same line
+
+  in /home/demeter/Projects/astal/lib/notifd/src/cli.vala for example:
+
+  case "int":
+      {
+          hints.set(name, new Variant.int32(int.parse(parts[2])));
+          return null;
+      }
+
+  should be
+
+  case "int": {
+      hints.set(name, new Variant.int32(int.parse(parts[2])));
+      return null;
+  }
+```
+
+### Ignore
+
+```
+// valafmt-ignore
+
+
+// valafmt-ignore:start
+
+// valafmt-ignore:end
+```
