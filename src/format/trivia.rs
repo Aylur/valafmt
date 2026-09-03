@@ -82,7 +82,10 @@ pub fn trailing_docs(trailing: &[Trivia]) -> Vec<Doc> {
         match tr.kind {
             TriviaKind::Whitespace => {}
             TriviaKind::LineComment => {
-                out.push(doc::line_suffix(doc::text(format!(" {}", tr.text.trim_end()))));
+                out.push(doc::line_suffix(doc::text(format!(
+                    " {}",
+                    tr.text.trim_end()
+                ))));
                 out.push(doc::break_parent());
             }
             TriviaKind::BlockComment | TriviaKind::DocComment => {
@@ -136,7 +139,9 @@ pub fn blank_line_before(t: &Token) -> bool {
 
 /// True if the token has any leading comments or directives.
 pub fn has_leading_pieces(t: &Token) -> bool {
-    t.leading.iter().any(|tr| tr.is_comment() || tr.kind == TriviaKind::Directive)
+    t.leading
+        .iter()
+        .any(|tr| tr.is_comment() || tr.kind == TriviaKind::Directive)
 }
 
 // ---------------------------------------------------------------------------
@@ -160,10 +165,11 @@ pub fn marker_of(tr: &Trivia) -> Option<IgnoreMarker> {
         return None;
     }
     let t = tr.text.trim();
-    let body = t
-        .strip_prefix("//")
-        .map(str::trim)
-        .or_else(|| t.strip_prefix("/*").and_then(|s| s.strip_suffix("*/")).map(str::trim))?;
+    let body = t.strip_prefix("//").map(str::trim).or_else(|| {
+        t.strip_prefix("/*")
+            .and_then(|s| s.strip_suffix("*/"))
+            .map(str::trim)
+    })?;
     match body {
         "valafmt-ignore" => Some(IgnoreMarker::Ignore),
         "valafmt-ignore-start" => Some(IgnoreMarker::Start),
@@ -187,7 +193,9 @@ pub fn leading_ignore_marker(t: &Token) -> Option<(IgnoreMarker, usize)> {
 }
 
 pub fn has_end_marker(t: &Token) -> bool {
-    t.leading.iter().any(|tr| marker_of(tr) == Some(IgnoreMarker::End))
+    t.leading
+        .iter()
+        .any(|tr| marker_of(tr) == Some(IgnoreMarker::End))
 }
 
 /// Byte offset where this token's node begins in the source, i.e. the start
@@ -208,7 +216,10 @@ pub fn leading_parts_until_marker(leading: &[Trivia]) -> Vec<Doc> {
                 push_gap(&mut parts, pending_newlines);
                 pending_newlines = 0;
                 parts.push(comment_doc(tr));
-                if matches!(marker_of(tr), Some(IgnoreMarker::Ignore | IgnoreMarker::Start)) {
+                if matches!(
+                    marker_of(tr),
+                    Some(IgnoreMarker::Ignore | IgnoreMarker::Start)
+                ) {
                     break;
                 }
             }

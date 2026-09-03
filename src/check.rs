@@ -31,7 +31,11 @@ pub fn verify(input: &str, output: &str) -> Result<(), String> {
             "token stream length differs: input {} items, output {} items (first extra: {:?})",
             sa.len(),
             sb.len(),
-            if sa.len() > sb.len() { &sa[sb.len()] } else { &sb[sa.len()] }
+            if sa.len() > sb.len() {
+                &sa[sb.len()]
+            } else {
+                &sb[sa.len()]
+            }
         ));
     }
     Ok(())

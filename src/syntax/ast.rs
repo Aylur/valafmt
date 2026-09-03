@@ -22,7 +22,10 @@ pub struct Punctuated<T> {
 
 impl<T> Punctuated<T> {
     pub fn new() -> Self {
-        Punctuated { items: Vec::new(), commas: Vec::new() }
+        Punctuated {
+            items: Vec::new(),
+            commas: Vec::new(),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
@@ -885,8 +888,13 @@ impl MemberKind {
             MemberKind::Delegate(d) => d.modifiers.first().unwrap_or(&d.delegate_kw),
             MemberKind::Constant(c) => c.modifiers.first().unwrap_or(&c.const_kw),
             MemberKind::Field(f) => f.modifiers.first().unwrap_or_else(|| f.ty.first_token()),
-            MemberKind::Method(m) => m.modifiers.first().unwrap_or_else(|| m.return_type.first_token()),
-            MemberKind::CreationMethod(m) => m.modifiers.first().unwrap_or_else(|| m.name.first_token()),
+            MemberKind::Method(m) => m
+                .modifiers
+                .first()
+                .unwrap_or_else(|| m.return_type.first_token()),
+            MemberKind::CreationMethod(m) => {
+                m.modifiers.first().unwrap_or_else(|| m.name.first_token())
+            }
             MemberKind::Property(p) => p.modifiers.first().unwrap_or_else(|| p.ty.first_token()),
             MemberKind::Signal(s) => s.modifiers.first().unwrap_or(&s.signal_kw),
             MemberKind::Constructor(c) => c.modifiers.first().unwrap_or(&c.construct_kw),
@@ -933,9 +941,10 @@ impl Stmt {
             Stmt::Block(b) => &b.l_brace,
             Stmt::Empty(t) => t,
             Stmt::LocalDecl(d) => d.const_kw.as_ref().unwrap_or_else(|| d.ty.first_token()),
-            Stmt::LocalMethod(m) => {
-                m.modifiers.first().unwrap_or_else(|| m.return_type.first_token())
-            }
+            Stmt::LocalMethod(m) => m
+                .modifiers
+                .first()
+                .unwrap_or_else(|| m.return_type.first_token()),
             Stmt::Expr { expr, .. } => expr.first_token(),
             Stmt::If(s) => &s.if_kw,
             Stmt::Switch(s) => &s.switch_kw,

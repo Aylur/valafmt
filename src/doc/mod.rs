@@ -58,11 +58,19 @@ pub fn concat(docs: Vec<Doc>) -> Doc {
 }
 
 pub fn group(doc: Doc) -> Doc {
-    Doc::Group { id: None, should_break: false, doc: Box::new(doc) }
+    Doc::Group {
+        id: None,
+        should_break: false,
+        doc: Box::new(doc),
+    }
 }
 
 pub fn group_with_id(id: GroupId, doc: Doc) -> Doc {
-    Doc::Group { id: Some(id), should_break: false, doc: Box::new(doc) }
+    Doc::Group {
+        id: Some(id),
+        should_break: false,
+        doc: Box::new(doc),
+    }
 }
 
 pub fn indent(doc: Doc) -> Doc {
@@ -82,11 +90,19 @@ pub fn hardline() -> Doc {
 }
 
 pub fn if_break(broken: Doc, flat: Doc) -> Doc {
-    Doc::IfBreak { broken: Box::new(broken), flat: Box::new(flat), group: None }
+    Doc::IfBreak {
+        broken: Box::new(broken),
+        flat: Box::new(flat),
+        group: None,
+    }
 }
 
 pub fn if_break_in(id: GroupId, broken: Doc, flat: Doc) -> Doc {
-    Doc::IfBreak { broken: Box::new(broken), flat: Box::new(flat), group: Some(id) }
+    Doc::IfBreak {
+        broken: Box::new(broken),
+        flat: Box::new(flat),
+        group: Some(id),
+    }
 }
 
 pub fn line_suffix(doc: Doc) -> Doc {

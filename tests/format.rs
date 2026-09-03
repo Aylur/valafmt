@@ -16,7 +16,12 @@ fn fixtures() {
         };
         let again = format_source(&out, &opts)
             .unwrap_or_else(|e| panic!("reformat of {} failed:\n{e}", path.display()));
-        assert_eq!(out, again, "formatting {} is not idempotent", path.display());
+        assert_eq!(
+            out,
+            again,
+            "formatting {} is not idempotent",
+            path.display()
+        );
         insta::assert_snapshot!(out);
     });
 }

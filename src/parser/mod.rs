@@ -36,8 +36,14 @@ use TokenKind as K;
 /// Keywords that may appear where an identifier is expected (member names,
 /// parameter names, etc.). valac requires `@` escaping for some of these, but
 /// accepting them loosely costs a formatter nothing.
-const CONTEXTUAL: &[Keyword] =
-    &[Kw::Get, Kw::Set, Kw::Value, Kw::Default, Kw::Params, Kw::Global];
+const CONTEXTUAL: &[Keyword] = &[
+    Kw::Get,
+    Kw::Set,
+    Kw::Value,
+    Kw::Default,
+    Kw::Params,
+    Kw::Global,
+];
 
 impl Parser {
     // -- token access -------------------------------------------------------
@@ -75,7 +81,10 @@ impl Parser {
     }
 
     fn error<T>(&self, message: impl Into<String>) -> PResult<T> {
-        Err(ParseError { offset: self.peek().offset, message: message.into() })
+        Err(ParseError {
+            offset: self.peek().offset,
+            message: message.into(),
+        })
     }
 
     fn expect(&mut self, kind: K, what: &str) -> PResult<Token> {
@@ -252,14 +261,17 @@ impl Parser {
                 let namespace_kw = self.bump();
                 let name = self.parse_qualified_name()?;
                 let body = self.parse_decl_body()?;
-                Ok(MemberKind::Namespace(NamespaceDecl { modifiers, namespace_kw, name, body }))
+                Ok(MemberKind::Namespace(NamespaceDecl {
+                    modifiers,
+                    namespace_kw,
+                    name,
+                    body,
+                }))
             }
             K::Kw(Kw::Class) => Ok(MemberKind::Class(self.parse_type_decl(modifiers)?)),
             K::Kw(Kw::Interface) => Ok(MemberKind::Interface(self.parse_type_decl(modifiers)?)),
             K::Kw(Kw::Struct) => Ok(MemberKind::Struct(self.parse_type_decl(modifiers)?)),
-            K::Kw(Kw::Enum) | K::Kw(Kw::Errordomain) => {
-                Ok(self.parse_enum_decl(modifiers)?)
-            }
+            K::Kw(Kw::Enum) | K::Kw(Kw::Errordomain) => Ok(self.parse_enum_decl(modifiers)?),
             K::Kw(Kw::Delegate) => {
                 let delegate_kw = self.bump();
                 let return_type = self.parse_type()?;
@@ -305,7 +317,11 @@ impl Parser {
             K::Kw(Kw::Construct) => {
                 let construct_kw = self.bump();
                 let body = self.parse_block()?;
-                Ok(MemberKind::Constructor(ConstructorDecl { modifiers, construct_kw, body }))
+                Ok(MemberKind::Constructor(ConstructorDecl {
+                    modifiers,
+                    construct_kw,
+                    body,
+                }))
             }
             K::Tilde => {
                 let tilde = self.bump();
@@ -381,9 +397,11 @@ impl Parser {
             && matches!(
                 self.nth_kind(1),
                 K::LParen | K::Semicolon | K::Assign | K::LBracket | K::LBrace
-            )
-        {
-            QualifiedName { global: None, parts: vec![self.bump()] }
+            ) {
+            QualifiedName {
+                global: None,
+                parts: vec![self.bump()],
+            }
         } else {
             self.parse_qualified_name()?
         };
@@ -436,7 +454,14 @@ impl Parser {
                     None => None,
                 };
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(MemberKind::Field(FieldDecl { modifiers, ty, name, array, init, semicolon }))
+                Ok(MemberKind::Field(FieldDecl {
+                    modifiers,
+                    ty,
+                    name,
+                    array,
+                    init,
+                    semicolon,
+                }))
             }
         }
     }
@@ -451,7 +476,12 @@ impl Parser {
             let eq = self.expect(K::Assign, "`=`")?;
             let expr = self.parse_expr()?;
             let semicolon = self.expect(K::Semicolon, "`;`")?;
-            return Ok(PropertyAccessor::Default { default_kw, eq, expr, semicolon });
+            return Ok(PropertyAccessor::Default {
+                default_kw,
+                eq,
+                expr,
+                semicolon,
+            });
         }
         let mut modifiers = Vec::new();
         while matches!(
@@ -465,14 +495,22 @@ impl Parser {
             modifiers.push(self.bump());
         }
         let mut keywords = Vec::new();
-        while matches!(self.kind(), K::Kw(Kw::Get) | K::Kw(Kw::Set) | K::Kw(Kw::Construct)) {
+        while matches!(
+            self.kind(),
+            K::Kw(Kw::Get) | K::Kw(Kw::Set) | K::Kw(Kw::Construct)
+        ) {
             keywords.push(self.bump());
         }
         if keywords.is_empty() {
             return self.error("expected `get`, `set`, `construct`, or `default` in property");
         }
         let body = self.parse_body()?;
-        Ok(PropertyAccessor::Accessor { attributes, modifiers, keywords, body })
+        Ok(PropertyAccessor::Accessor {
+            attributes,
+            modifiers,
+            keywords,
+            body,
+        })
     }
 
     fn parse_using(&mut self) -> PResult<UsingDirective> {
@@ -484,7 +522,11 @@ impl Parser {
             names.items.push(self.parse_qualified_name()?);
         }
         let semicolon = self.expect(K::Semicolon, "`;`")?;
-        Ok(UsingDirective { using_kw, names, semicolon })
+        Ok(UsingDirective {
+            using_kw,
+            names,
+            semicolon,
+        })
     }
 
     fn parse_type_decl(&mut self, modifiers: Vec<Token>) -> PResult<TypeDecl> {
@@ -504,7 +546,14 @@ impl Parser {
             None
         };
         let body = self.parse_decl_body()?;
-        Ok(TypeDecl { modifiers, keyword, name, type_params, base, body })
+        Ok(TypeDecl {
+            modifiers,
+            keyword,
+            name,
+            type_params,
+            base,
+            body,
+        })
     }
 
     fn parse_enum_decl(&mut self, modifiers: Vec<Token>) -> PResult<MemberKind> {
@@ -534,7 +583,11 @@ impl Parser {
                 Some(eq) => Some((eq, self.parse_expr()?)),
                 None => None,
             };
-            values.items.push(EnumValue { attributes, name: value_name, value });
+            values.items.push(EnumValue {
+                attributes,
+                name: value_name,
+                value,
+            });
             match self.eat(K::Comma) {
                 Some(comma) => values.commas.push(comma),
                 None => break,
@@ -546,9 +599,22 @@ impl Parser {
             members.push(self.parse_member()?);
         }
         let r_brace = self.expect(K::RBrace, "`}`")?;
-        let decl =
-            EnumDecl { modifiers, keyword, name, base, l_brace, values, semicolon, members, r_brace };
-        Ok(if is_enum { MemberKind::Enum(decl) } else { MemberKind::Errordomain(decl) })
+        let decl = EnumDecl {
+            modifiers,
+            keyword,
+            name,
+            base,
+            l_brace,
+            values,
+            semicolon,
+            members,
+            r_brace,
+        };
+        Ok(if is_enum {
+            MemberKind::Enum(decl)
+        } else {
+            MemberKind::Errordomain(decl)
+        })
     }
 
     fn parse_decl_body(&mut self) -> PResult<DeclBody> {
@@ -558,7 +624,11 @@ impl Parser {
             members.push(self.parse_member()?);
         }
         let r_brace = self.expect(K::RBrace, "`}`")?;
-        Ok(DeclBody { l_brace, members, r_brace })
+        Ok(DeclBody {
+            l_brace,
+            members,
+            r_brace,
+        })
     }
 
     fn parse_opt_type_params(&mut self) -> PResult<Option<TypeParamList>> {
@@ -597,7 +667,12 @@ impl Parser {
             let l_paren = self.expect(K::LParen, "`(`")?;
             let expr = self.parse_expr()?;
             let r_paren = self.expect(K::RParen, "`)`")?;
-            out.push(Contract { keyword, l_paren, expr, r_paren });
+            out.push(Contract {
+                keyword,
+                l_paren,
+                expr,
+                r_paren,
+            });
         }
         Ok(out)
     }
@@ -640,7 +715,11 @@ impl Parser {
             modifiers.push(self.bump());
         }
         if let Some(ellipsis) = self.eat(K::DotDotDot) {
-            return Ok(Param { attributes, modifiers, kind: ParamKind::Ellipsis(ellipsis) });
+            return Ok(Param {
+                attributes,
+                modifiers,
+                kind: ParamKind::Ellipsis(ellipsis),
+            });
         }
         let ty = self.parse_type()?;
         // Keywords appear as parameter names in the wild (`bool delete`).
@@ -656,7 +735,11 @@ impl Parser {
             Some(eq) => Some((eq, self.parse_expr()?)),
             None => None,
         };
-        Ok(Param { attributes, modifiers, kind: ParamKind::Typed { ty, name, default } })
+        Ok(Param {
+            attributes,
+            modifiers,
+            kind: ParamKind::Typed { ty, name, default },
+        })
     }
 
     // -- attributes ---------------------------------------------------------
@@ -674,7 +757,11 @@ impl Parser {
                         let arg_name = self.expect_ident()?;
                         let eq = self.expect(K::Assign, "`=`")?;
                         let value = self.parse_expr()?;
-                        list.items.push(AttributeArg { name: arg_name, eq, value });
+                        list.items.push(AttributeArg {
+                            name: arg_name,
+                            eq,
+                            value,
+                        });
                         match self.eat(K::Comma) {
                             Some(comma) => list.commas.push(comma),
                             None => break,
@@ -682,7 +769,11 @@ impl Parser {
                     }
                 }
                 let r_paren = self.expect(K::RParen, "`)`")?;
-                Some(AttributeArgs { l_paren, args: list, r_paren })
+                Some(AttributeArgs {
+                    l_paren,
+                    args: list,
+                    r_paren,
+                })
             } else {
                 None
             };
@@ -693,7 +784,11 @@ impl Parser {
             }
         }
         let r_bracket = self.expect(K::RBracket, "`]`")?;
-        Ok(AttributeList { l_bracket, attrs, r_bracket })
+        Ok(AttributeList {
+            l_bracket,
+            attrs,
+            r_bracket,
+        })
     }
 
     // -- names & types ------------------------------------------------------
@@ -738,7 +833,11 @@ impl Parser {
             if !self.at(K::LBracket) {
                 return self.error("expected `[` after parenthesized type");
             }
-            TypeCore::Paren { l_paren, inner: Box::new(inner), r_paren }
+            TypeCore::Paren {
+                l_paren,
+                inner: Box::new(inner),
+                r_paren,
+            }
         } else {
             let name = self.parse_qualified_name()?;
             let type_args = if self.at(K::Lt) {
@@ -752,7 +851,11 @@ impl Parser {
             TypeCore::Named { name, type_args }
         };
         let suffixes = self.parse_type_suffixes()?;
-        Ok(Type { prefix, core, suffixes })
+        Ok(Type {
+            prefix,
+            core,
+            suffixes,
+        })
     }
 
     fn parse_type_suffixes(&mut self) -> PResult<Vec<TypeSuffix>> {
@@ -781,7 +884,12 @@ impl Parser {
                     }
                     let r_bracket = self.expect(K::RBracket, "`]`")?;
                     let nullable = self.eat(K::Question);
-                    suffixes.push(TypeSuffix::Array { l_bracket, dims, r_bracket, nullable });
+                    suffixes.push(TypeSuffix::Array {
+                        l_bracket,
+                        dims,
+                        r_bracket,
+                        nullable,
+                    });
                 }
                 _ => break,
             }
@@ -810,7 +918,11 @@ impl Parser {
             statements.push(self.parse_stmt()?);
         }
         let r_brace = self.expect(K::RBrace, "`}`")?;
-        Ok(Block { l_brace, statements, r_brace })
+        Ok(Block {
+            l_brace,
+            statements,
+            r_brace,
+        })
     }
 
     fn parse_stmt(&mut self) -> PResult<Stmt> {
@@ -825,7 +937,13 @@ impl Parser {
                 let cond = self.parse_expr()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
                 let body = Box::new(self.parse_embedded_stmt()?);
-                Ok(Stmt::While(WhileStmt { while_kw, l_paren, cond, r_paren, body }))
+                Ok(Stmt::While(WhileStmt {
+                    while_kw,
+                    l_paren,
+                    cond,
+                    r_paren,
+                    body,
+                }))
             }
             K::Kw(Kw::Do) => {
                 let do_kw = self.bump();
@@ -859,15 +977,27 @@ impl Parser {
             }
             K::Kw(Kw::Return) => {
                 let kw = self.bump();
-                let expr = if self.at(K::Semicolon) { None } else { Some(self.parse_expr()?) };
+                let expr = if self.at(K::Semicolon) {
+                    None
+                } else {
+                    Some(self.parse_expr()?)
+                };
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(Stmt::Return { kw, expr, semicolon })
+                Ok(Stmt::Return {
+                    kw,
+                    expr,
+                    semicolon,
+                })
             }
             K::Kw(Kw::Throw) => {
                 let kw = self.bump();
                 let expr = self.parse_expr()?;
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(Stmt::Throw { kw, expr, semicolon })
+                Ok(Stmt::Throw {
+                    kw,
+                    expr,
+                    semicolon,
+                })
             }
             K::Kw(Kw::Try) => self.parse_try(),
             K::Kw(Kw::Lock) => {
@@ -876,7 +1006,13 @@ impl Parser {
                 let expr = self.parse_expr()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
                 let body = self.parse_lock_body()?;
-                Ok(Stmt::Lock(LockStmt { lock_kw, l_paren, expr, r_paren, body }))
+                Ok(Stmt::Lock(LockStmt {
+                    lock_kw,
+                    l_paren,
+                    expr,
+                    r_paren,
+                    body,
+                }))
             }
             K::Kw(Kw::Unlock) => {
                 let kw = self.bump();
@@ -884,13 +1020,23 @@ impl Parser {
                 let expr = self.parse_expr()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(Stmt::Unlock { kw, l_paren, expr, r_paren, semicolon })
+                Ok(Stmt::Unlock {
+                    kw,
+                    l_paren,
+                    expr,
+                    r_paren,
+                    semicolon,
+                })
             }
             K::Kw(Kw::Delete) => {
                 let kw = self.bump();
                 let expr = self.parse_expr()?;
                 let semicolon = self.expect(K::Semicolon, "`;`")?;
-                Ok(Stmt::Delete { kw, expr, semicolon })
+                Ok(Stmt::Delete {
+                    kw,
+                    expr,
+                    semicolon,
+                })
             }
             K::Kw(Kw::Yield) if self.nth_kind(1) == K::Semicolon => {
                 let kw = self.bump();
@@ -928,7 +1074,14 @@ impl Parser {
         } else {
             None
         };
-        Ok(Stmt::If(IfStmt { if_kw, l_paren, cond, r_paren, then, else_branch }))
+        Ok(Stmt::If(IfStmt {
+            if_kw,
+            l_paren,
+            cond,
+            r_paren,
+            then,
+            else_branch,
+        }))
     }
 
     fn parse_switch(&mut self) -> PResult<Stmt> {
@@ -945,7 +1098,11 @@ impl Parser {
                     let case_kw = self.bump();
                     let case_expr = self.parse_expr()?;
                     let colon = self.expect(K::Colon, "`:`")?;
-                    labels.push(SwitchLabel::Case { case_kw, expr: case_expr, colon });
+                    labels.push(SwitchLabel::Case {
+                        case_kw,
+                        expr: case_expr,
+                        colon,
+                    });
                 } else if self.at_kw(Kw::Default) && self.nth_kind(1) == K::Colon {
                     let default_kw = self.bump();
                     let colon = self.bump();
@@ -966,7 +1123,15 @@ impl Parser {
             sections.push(SwitchSection { labels, statements });
         }
         let r_brace = self.expect(K::RBrace, "`}`")?;
-        Ok(Stmt::Switch(SwitchStmt { switch_kw, l_paren, expr, r_paren, l_brace, sections, r_brace }))
+        Ok(Stmt::Switch(SwitchStmt {
+            switch_kw,
+            l_paren,
+            expr,
+            r_paren,
+            l_brace,
+            sections,
+            r_brace,
+        }))
     }
 
     fn parse_for(&mut self) -> PResult<Stmt> {
@@ -974,7 +1139,10 @@ impl Parser {
         let l_paren = self.expect(K::LParen, "`(`")?;
         let init = if self.at(K::Semicolon) {
             let semicolon = self.bump();
-            ForInit::Exprs { exprs: Punctuated::new(), semicolon }
+            ForInit::Exprs {
+                exprs: Punctuated::new(),
+                semicolon,
+            }
         } else if let Some(decl) = self.try_parse(|p| p.parse_local_decl()) {
             ForInit::Decl(decl)
         } else {
@@ -987,7 +1155,11 @@ impl Parser {
             let semicolon = self.expect(K::Semicolon, "`;`")?;
             ForInit::Exprs { exprs, semicolon }
         };
-        let cond = if self.at(K::Semicolon) { None } else { Some(self.parse_expr()?) };
+        let cond = if self.at(K::Semicolon) {
+            None
+        } else {
+            Some(self.parse_expr()?)
+        };
         let semicolon2 = self.expect(K::Semicolon, "`;`")?;
         let mut update = Punctuated::new();
         if !self.at(K::RParen) {
@@ -999,7 +1171,16 @@ impl Parser {
         }
         let r_paren = self.expect(K::RParen, "`)`")?;
         let body = Box::new(self.parse_embedded_stmt()?);
-        Ok(Stmt::For(ForStmt { for_kw, l_paren, init, cond, semicolon2, update, r_paren, body }))
+        Ok(Stmt::For(ForStmt {
+            for_kw,
+            l_paren,
+            init,
+            cond,
+            semicolon2,
+            update,
+            r_paren,
+            body,
+        }))
     }
 
     fn parse_local_decl_type(&mut self) -> PResult<LocalDeclType> {
@@ -1011,7 +1192,11 @@ impl Parser {
         if self.at_kw(Kw::Var) {
             let var_kw = self.bump();
             let nullable = self.eat(K::Question);
-            Ok(LocalDeclType::Var { prefix, var_kw, nullable })
+            Ok(LocalDeclType::Var {
+                prefix,
+                var_kw,
+                nullable,
+            })
         } else {
             self.pos = save;
             Ok(LocalDeclType::Type(self.parse_type()?))
@@ -1027,7 +1212,16 @@ impl Parser {
         let expr = self.parse_expr()?;
         let r_paren = self.expect(K::RParen, "`)`")?;
         let body = Box::new(self.parse_embedded_stmt()?);
-        Ok(Stmt::Foreach(ForeachStmt { foreach_kw, l_paren, ty, name, in_kw, expr, r_paren, body }))
+        Ok(Stmt::Foreach(ForeachStmt {
+            foreach_kw,
+            l_paren,
+            ty,
+            name,
+            in_kw,
+            expr,
+            r_paren,
+            body,
+        }))
     }
 
     fn parse_try(&mut self) -> PResult<Stmt> {
@@ -1041,21 +1235,38 @@ impl Parser {
                 let ty = self.parse_type()?;
                 let name = self.expect_ident()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
-                Some(CatchParam { l_paren, ty, name, r_paren })
+                Some(CatchParam {
+                    l_paren,
+                    ty,
+                    name,
+                    r_paren,
+                })
             } else {
                 None
             };
             let catch_body = self.parse_block()?;
-            catches.push(CatchClause { catch_kw, param, body: catch_body });
+            catches.push(CatchClause {
+                catch_kw,
+                param,
+                body: catch_body,
+            });
         }
         let finally = if self.at_kw(Kw::Finally) {
             let finally_kw = self.bump();
             let fin_body = self.parse_block()?;
-            Some(FinallyClause { finally_kw, body: fin_body })
+            Some(FinallyClause {
+                finally_kw,
+                body: fin_body,
+            })
         } else {
             None
         };
-        Ok(Stmt::Try(TryStmt { try_kw, body, catches, finally }))
+        Ok(Stmt::Try(TryStmt {
+            try_kw,
+            body,
+            catches,
+            finally,
+        }))
     }
 
     fn parse_with(&mut self) -> PResult<Stmt> {
@@ -1071,7 +1282,14 @@ impl Parser {
         let expr = self.parse_expr()?;
         let r_paren = self.expect(K::RParen, "`)`")?;
         let body = self.parse_block()?;
-        Ok(Stmt::With(WithStmt { with_kw, l_paren, decl, expr, r_paren, body }))
+        Ok(Stmt::With(WithStmt {
+            with_kw,
+            l_paren,
+            decl,
+            expr,
+            r_paren,
+            body,
+        }))
     }
 
     fn parse_decl_or_expr_stmt(&mut self) -> PResult<Stmt> {
@@ -1093,7 +1311,10 @@ impl Parser {
         if !self.at_ident() {
             return self.error("not a local function");
         }
-        let name = QualifiedName { global: None, parts: vec![self.bump()] };
+        let name = QualifiedName {
+            global: None,
+            parts: vec![self.bump()],
+        };
         let l_paren = self.expect(K::LParen, "`(`")?;
         let params = self.parse_params()?;
         let r_paren = self.expect(K::RParen, "`)`")?;
@@ -1126,7 +1347,10 @@ impl Parser {
         if !matches!(self.kind(), K::Ident | K::Kw(_)) {
             return self.error("not a declaration");
         }
-        if !matches!(self.nth_kind(1), K::Assign | K::Semicolon | K::Comma | K::LBracket) {
+        if !matches!(
+            self.nth_kind(1),
+            K::Assign | K::Semicolon | K::Comma | K::LBracket
+        ) {
             return self.error("not a declaration");
         }
         let mut declarators = Punctuated::new();
@@ -1148,7 +1372,12 @@ impl Parser {
             }
         }
         let semicolon = self.expect(K::Semicolon, "`;`")?;
-        Ok(LocalDecl { const_kw, ty, declarators, semicolon })
+        Ok(LocalDecl {
+            const_kw,
+            ty,
+            declarators,
+            semicolon,
+        })
     }
 
     // -- expressions --------------------------------------------------------
@@ -1180,7 +1409,11 @@ impl Parser {
             _ => return Ok(lhs),
         };
         let rhs = self.parse_assignment()?;
-        Ok(Expr::Assign { lhs: Box::new(lhs), op, rhs: Box::new(rhs) })
+        Ok(Expr::Assign {
+            lhs: Box::new(lhs),
+            op,
+            rhs: Box::new(rhs),
+        })
     }
 
     /// Detect and parse a lambda: `ident =>` or `(ident, ...) =>`.
@@ -1238,7 +1471,11 @@ impl Parser {
                 }
             }
             let r_paren = self.expect(K::RParen, "`)`")?;
-            LambdaParams::List { l_paren, params, r_paren }
+            LambdaParams::List {
+                l_paren,
+                params,
+                r_paren,
+            }
         } else {
             LambdaParams::Single(self.bump())
         };
@@ -1248,7 +1485,11 @@ impl Parser {
         } else {
             LambdaBody::Expr(Box::new(self.parse_expr()?))
         };
-        Ok(Some(Expr::Lambda { params, arrow, body }))
+        Ok(Some(Expr::Lambda {
+            params,
+            arrow,
+            body,
+        }))
     }
 
     fn parse_conditional(&mut self) -> PResult<Expr> {
@@ -1277,7 +1518,11 @@ impl Parser {
         while self.at(K::QuestionQuestion) {
             let op = vec![self.bump()];
             let rhs = self.parse_or()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1287,7 +1532,11 @@ impl Parser {
         while self.at(K::PipePipe) {
             let op = vec![self.bump()];
             let rhs = self.parse_and()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1297,7 +1546,11 @@ impl Parser {
         while self.at(K::AmpAmp) {
             let op = vec![self.bump()];
             let rhs = self.parse_bit_or()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1307,7 +1560,11 @@ impl Parser {
         while self.at(K::Pipe) {
             let op = vec![self.bump()];
             let rhs = self.parse_bit_xor()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1317,7 +1574,11 @@ impl Parser {
         while self.at(K::Caret) {
             let op = vec![self.bump()];
             let rhs = self.parse_bit_and()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1327,7 +1588,11 @@ impl Parser {
         while self.at(K::Amp) {
             let op = vec![self.bump()];
             let rhs = self.parse_equality()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1339,7 +1604,11 @@ impl Parser {
                 K::Eq | K::NotEq | K::Kw(Kw::In) => {
                     let op = vec![self.bump()];
                     let rhs = self.parse_relational()?;
-                    lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        lhs: Box::new(lhs),
+                        op,
+                        rhs: Box::new(rhs),
+                    };
                 }
                 _ => return Ok(lhs),
             }
@@ -1353,7 +1622,11 @@ impl Parser {
                 K::Lt | K::LtEq | K::GtEq => {
                     let op = vec![self.bump()];
                     let rhs = self.parse_shift()?;
-                    lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        lhs: Box::new(lhs),
+                        op,
+                        rhs: Box::new(rhs),
+                    };
                 }
                 // Lone `>` is relational; `>` `>` adjacent is a shift
                 // (handled one level down) and `>` `>=` adjacent is `>>=`
@@ -1361,12 +1634,20 @@ impl Parser {
                 K::Gt if !(matches!(self.nth_kind(1), K::Gt | K::GtEq) && self.next_adjacent()) => {
                     let op = vec![self.bump()];
                     let rhs = self.parse_shift()?;
-                    lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        lhs: Box::new(lhs),
+                        op,
+                        rhs: Box::new(rhs),
+                    };
                 }
                 K::Kw(Kw::Is) | K::Kw(Kw::As) => {
                     let op = self.bump();
                     let ty = self.parse_type()?;
-                    lhs = Expr::TypeOp { expr: Box::new(lhs), op, ty };
+                    lhs = Expr::TypeOp {
+                        expr: Box::new(lhs),
+                        op,
+                        ty,
+                    };
                 }
                 _ => return Ok(lhs),
             }
@@ -1380,15 +1661,24 @@ impl Parser {
                 K::Shl => {
                     let op = vec![self.bump()];
                     let rhs = self.parse_additive()?;
-                    lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        lhs: Box::new(lhs),
+                        op,
+                        rhs: Box::new(rhs),
+                    };
                 }
-                K::Gt if self.nth_kind(1) == K::Gt
-                    && self.next_adjacent()
-                    && self.nth_kind(2) != K::Assign =>
+                K::Gt
+                    if self.nth_kind(1) == K::Gt
+                        && self.next_adjacent()
+                        && self.nth_kind(2) != K::Assign =>
                 {
                     let op = vec![self.bump(), self.bump()];
                     let rhs = self.parse_additive()?;
-                    lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+                    lhs = Expr::Binary {
+                        lhs: Box::new(lhs),
+                        op,
+                        rhs: Box::new(rhs),
+                    };
                 }
                 _ => return Ok(lhs),
             }
@@ -1400,7 +1690,11 @@ impl Parser {
         while matches!(self.kind(), K::Plus | K::Minus) {
             let op = vec![self.bump()];
             let rhs = self.parse_multiplicative()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
@@ -1410,23 +1704,39 @@ impl Parser {
         while matches!(self.kind(), K::Star | K::Slash | K::Percent) {
             let op = vec![self.bump()];
             let rhs = self.parse_unary()?;
-            lhs = Expr::Binary { lhs: Box::new(lhs), op, rhs: Box::new(rhs) };
+            lhs = Expr::Binary {
+                lhs: Box::new(lhs),
+                op,
+                rhs: Box::new(rhs),
+            };
         }
         Ok(lhs)
     }
 
     fn parse_unary(&mut self) -> PResult<Expr> {
         match self.kind() {
-            K::Bang | K::Tilde | K::Plus | K::Minus | K::PlusPlus | K::MinusMinus | K::Star
+            K::Bang
+            | K::Tilde
+            | K::Plus
+            | K::Minus
+            | K::PlusPlus
+            | K::MinusMinus
+            | K::Star
             | K::Amp => {
                 let op = self.bump();
                 let expr = self.parse_unary()?;
-                Ok(Expr::Unary { op, expr: Box::new(expr) })
+                Ok(Expr::Unary {
+                    op,
+                    expr: Box::new(expr),
+                })
             }
             K::Kw(Kw::Yield) => {
                 let yield_kw = self.bump();
                 let expr = self.parse_unary()?;
-                Ok(Expr::Yield { yield_kw, expr: Box::new(expr) })
+                Ok(Expr::Yield {
+                    yield_kw,
+                    expr: Box::new(expr),
+                })
             }
             K::LParen => {
                 // Try `(owned) expr`, `(!) expr`, `(Type) expr`.
@@ -1447,7 +1757,12 @@ impl Parser {
                     let bang = self.bump();
                     let r_paren = self.bump();
                     let expr = self.parse_unary()?;
-                    return Ok(Expr::NonNullCast { l_paren, bang, r_paren, expr: Box::new(expr) });
+                    return Ok(Expr::NonNullCast {
+                        l_paren,
+                        bang,
+                        r_paren,
+                        expr: Box::new(expr),
+                    });
                 }
                 if let Some(cast) = self.try_parse(|p| p.parse_cast()) {
                     return Ok(cast);
@@ -1494,7 +1809,12 @@ impl Parser {
             return self.error("not a cast");
         }
         let expr = self.parse_unary()?;
-        Ok(Expr::Cast { l_paren, ty, r_paren, expr: Box::new(expr) })
+        Ok(Expr::Cast {
+            l_paren,
+            ty,
+            r_paren,
+            expr: Box::new(expr),
+        })
     }
 
     fn parse_postfix(&mut self) -> PResult<Expr> {
@@ -1510,12 +1830,16 @@ impl Parser {
                     let name = if matches!(self.kind(), K::Ident | K::Kw(_)) {
                         self.bump()
                     } else {
-                        return self.error(format!(
-                            "expected member name, found `{}`",
-                            self.describe()
-                        ));
+                        return self
+                            .error(format!("expected member name, found `{}`", self.describe()));
                     };
-                    expr = Expr::Member { base: Box::new(expr), op, op2, name, type_args: None };
+                    expr = Expr::Member {
+                        base: Box::new(expr),
+                        op,
+                        op2,
+                        name,
+                        type_args: None,
+                    };
                 }
                 K::Dot | K::Arrow | K::QuestionDot => {
                     let op = self.bump();
@@ -1524,10 +1848,8 @@ impl Parser {
                     let name = if matches!(self.kind(), K::Ident | K::Kw(_)) {
                         self.bump()
                     } else {
-                        return self.error(format!(
-                            "expected member name, found `{}`",
-                            self.describe()
-                        ));
+                        return self
+                            .error(format!("expected member name, found `{}`", self.describe()));
                     };
                     // Generic member reference: `foo.bar<int> (...)`.
                     let type_args = if self.at(K::Lt) {
@@ -1542,7 +1864,13 @@ impl Parser {
                     } else {
                         None
                     };
-                    expr = Expr::Member { base: Box::new(expr), op, op2: None, name, type_args };
+                    expr = Expr::Member {
+                        base: Box::new(expr),
+                        op,
+                        op2: None,
+                        name,
+                        type_args,
+                    };
                 }
                 K::LParen => {
                     let l_paren = self.bump();
@@ -1588,7 +1916,11 @@ impl Parser {
                 K::LBracket => {
                     let l_bracket = self.bump();
                     // Slice `[a:b]` or index list `[a, b]`.
-                    let first = if self.at(K::Colon) { None } else { Some(self.parse_expr()?) };
+                    let first = if self.at(K::Colon) {
+                        None
+                    } else {
+                        Some(self.parse_expr()?)
+                    };
                     if self.at(K::Colon) {
                         let colon = self.bump();
                         let end = if self.at(K::RBracket) {
@@ -1615,12 +1947,20 @@ impl Parser {
                             }
                         }
                         let r_bracket = self.expect(K::RBracket, "`]`")?;
-                        expr = Expr::Index { base: Box::new(expr), l_bracket, indices, r_bracket };
+                        expr = Expr::Index {
+                            base: Box::new(expr),
+                            l_bracket,
+                            indices,
+                            r_bracket,
+                        };
                     }
                 }
                 K::PlusPlus | K::MinusMinus => {
                     let op = self.bump();
-                    expr = Expr::PostfixIncDec { base: Box::new(expr), op };
+                    expr = Expr::PostfixIncDec {
+                        base: Box::new(expr),
+                        op,
+                    };
                 }
                 _ => return Ok(expr),
             }
@@ -1633,9 +1973,17 @@ impl Parser {
             return Ok(None);
         }
         let l_bracket = self.bump();
-        let size = if self.at(K::RBracket) { None } else { Some(self.parse_expr()?) };
+        let size = if self.at(K::RBracket) {
+            None
+        } else {
+            Some(self.parse_expr()?)
+        };
         let r_bracket = self.expect(K::RBracket, "`]`")?;
-        Ok(Some(CArraySuffix { l_bracket, size, r_bracket }))
+        Ok(Some(CArraySuffix {
+            l_bracket,
+            size,
+            r_bracket,
+        }))
     }
 
     /// Struct creation without `new`: after `Name (...)`, a `{` that looks
@@ -1676,7 +2024,11 @@ impl Parser {
                 None
             };
             let expr = self.parse_expr()?;
-            args.items.push(Arg { modifier, name, expr });
+            args.items.push(Arg {
+                modifier,
+                name,
+                expr,
+            });
             match self.eat(K::Comma) {
                 Some(comma) => args.commas.push(comma),
                 None => break,
@@ -1704,18 +2056,24 @@ impl Parser {
                 let global_kw = self.bump();
                 let colon_colon = self.bump();
                 let name = self.expect_ident()?;
-                Ok(Expr::Global { global_kw, colon_colon, name })
+                Ok(Expr::Global {
+                    global_kw,
+                    colon_colon,
+                    name,
+                })
             }
             K::Kw(kw) if CONTEXTUAL.contains(&kw) => Ok(Expr::Atom(self.bump())),
             K::LParen => {
                 let l_paren = self.bump();
                 let expr = self.parse_expr()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
-                Ok(Expr::Paren { l_paren, expr: Box::new(expr), r_paren })
+                Ok(Expr::Paren {
+                    l_paren,
+                    expr: Box::new(expr),
+                    r_paren,
+                })
             }
-            K::LBrace => {
-                Ok(Expr::Initializer(self.parse_initializer_list()?))
-            }
+            K::LBrace => Ok(Expr::Initializer(self.parse_initializer_list()?)),
             K::Kw(Kw::New) => {
                 let new_kw = self.bump();
                 let ty = self.parse_type()?;
@@ -1723,7 +2081,11 @@ impl Parser {
                     let l_paren = self.bump();
                     let list = self.parse_args()?;
                     let r_paren = self.expect(K::RParen, "`)`")?;
-                    Some(CallArgs { l_paren, args: list, r_paren })
+                    Some(CallArgs {
+                        l_paren,
+                        args: list,
+                        r_paren,
+                    })
                 } else {
                     None
                 };
@@ -1732,21 +2094,36 @@ impl Parser {
                 } else {
                     None
                 };
-                Ok(Expr::New { new_kw, ty, args, initializer })
+                Ok(Expr::New {
+                    new_kw,
+                    ty,
+                    args,
+                    initializer,
+                })
             }
             K::Kw(Kw::Typeof) => {
                 let kw = self.bump();
                 let l_paren = self.expect(K::LParen, "`(`")?;
                 let ty = self.parse_type()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
-                Ok(Expr::Typeof { kw, l_paren, ty, r_paren })
+                Ok(Expr::Typeof {
+                    kw,
+                    l_paren,
+                    ty,
+                    r_paren,
+                })
             }
             K::Kw(Kw::Sizeof) => {
                 let kw = self.bump();
                 let l_paren = self.expect(K::LParen, "`(`")?;
                 let ty = self.parse_type()?;
                 let r_paren = self.expect(K::RParen, "`)`")?;
-                Ok(Expr::Sizeof { kw, l_paren, ty, r_paren })
+                Ok(Expr::Sizeof {
+                    kw,
+                    l_paren,
+                    ty,
+                    r_paren,
+                })
             }
             // Last resort: any other keyword reads as a plain identifier when
             // the next token can only *continue* an expression
@@ -1798,13 +2175,21 @@ impl Parser {
                 _ => None,
             };
             let expr = self.parse_expr()?;
-            items.items.push(Arg { modifier, name: None, expr });
+            items.items.push(Arg {
+                modifier,
+                name: None,
+                expr,
+            });
             match self.eat(K::Comma) {
                 Some(comma) => items.commas.push(comma),
                 None => break,
             }
         }
         let r_brace = self.expect(K::RBrace, "`}`")?;
-        Ok(InitializerList { l_brace, items, r_brace })
+        Ok(InitializerList {
+            l_brace,
+            items,
+            r_brace,
+        })
     }
 }

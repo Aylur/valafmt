@@ -12,8 +12,13 @@ fn sp() -> Doc {
 }
 
 pub fn block_doc(b: &Block) -> Doc {
-    let mut inner =
-        super::item_list_docs(&b.statements, &b.r_brace, true, |s| s.first_token(), stmt_doc);
+    let mut inner = super::item_list_docs(
+        &b.statements,
+        &b.r_brace,
+        true,
+        |s| s.first_token(),
+        stmt_doc,
+    );
     for p in leading_parts(&b.r_brace.leading) {
         inner.push(doc::hardline());
         inner.push(p);
@@ -106,10 +111,14 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
             ])),
             embedded_body(&f.body),
         ]),
-        Stmt::Break { kw, semicolon } | Stmt::Continue { kw, semicolon } | Stmt::Yield { kw, semicolon } => {
-            doc::concat(vec![tok(kw), tok(semicolon)])
-        }
-        Stmt::Return { kw, expr, semicolon } => {
+        Stmt::Break { kw, semicolon }
+        | Stmt::Continue { kw, semicolon }
+        | Stmt::Yield { kw, semicolon } => doc::concat(vec![tok(kw), tok(semicolon)]),
+        Stmt::Return {
+            kw,
+            expr,
+            semicolon,
+        } => {
             let mut out = vec![tok(kw)];
             if let Some(e) = expr {
                 out.push(sp());
@@ -118,12 +127,18 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
             out.push(tok(semicolon));
             doc::concat(out)
         }
-        Stmt::Throw { kw, expr, semicolon } => {
-            doc::concat(vec![tok(kw), sp(), expr_doc(expr), tok(semicolon)])
-        }
+        Stmt::Throw {
+            kw,
+            expr,
+            semicolon,
+        } => doc::concat(vec![tok(kw), sp(), expr_doc(expr), tok(semicolon)]),
         Stmt::Try(t) => try_doc(t),
         Stmt::Lock(l) => {
-            let mut out = vec![tok(&l.lock_kw), sp(), paren_cond(&l.l_paren, &l.expr, &l.r_paren)];
+            let mut out = vec![
+                tok(&l.lock_kw),
+                sp(),
+                paren_cond(&l.l_paren, &l.expr, &l.r_paren),
+            ];
             match &l.body {
                 Body::Block(b) => {
                     out.push(sp());
@@ -133,15 +148,23 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
             }
             doc::concat(out)
         }
-        Stmt::Unlock { kw, l_paren, expr, r_paren, semicolon } => doc::concat(vec![
+        Stmt::Unlock {
+            kw,
+            l_paren,
+            expr,
+            r_paren,
+            semicolon,
+        } => doc::concat(vec![
             tok(kw),
             sp(),
             paren_cond(l_paren, expr, r_paren),
             tok(semicolon),
         ]),
-        Stmt::Delete { kw, expr, semicolon } => {
-            doc::concat(vec![tok(kw), sp(), expr_doc(expr), tok(semicolon)])
-        }
+        Stmt::Delete {
+            kw,
+            expr,
+            semicolon,
+        } => doc::concat(vec![tok(kw), sp(), expr_doc(expr), tok(semicolon)]),
         Stmt::With(w) => {
             let mut inner = vec![tok(&w.with_kw), sp(), tok(&w.l_paren)];
             if let Some((ty, name, eq)) = &w.decl {
@@ -163,7 +186,11 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
 
 pub fn local_decl_type_doc(t: &LocalDeclType) -> Doc {
     match t {
-        LocalDeclType::Var { prefix, var_kw, nullable } => {
+        LocalDeclType::Var {
+            prefix,
+            var_kw,
+            nullable,
+        } => {
             let mut out = Vec::new();
             for p in prefix {
                 out.push(tok(p));
@@ -203,7 +230,11 @@ pub fn local_decl_doc(d: &LocalDecl) -> Doc {
 }
 
 fn if_doc(i: &IfStmt) -> Doc {
-    let mut out = vec![tok(&i.if_kw), sp(), paren_cond(&i.l_paren, &i.cond, &i.r_paren)];
+    let mut out = vec![
+        tok(&i.if_kw),
+        sp(),
+        paren_cond(&i.l_paren, &i.cond, &i.r_paren),
+    ];
     let then_is_block = matches!(&*i.then, Stmt::Block(_));
     out.push(embedded_body(&i.then));
     if let Some(els) = &i.else_branch {
@@ -291,7 +322,11 @@ fn switch_doc(sw: &SwitchStmt) -> Doc {
                 inner.push(doc::hardline());
             }
             match label {
-                SwitchLabel::Case { case_kw, expr, colon } => {
+                SwitchLabel::Case {
+                    case_kw,
+                    expr,
+                    colon,
+                } => {
                     inner.push(tok(case_kw));
                     inner.push(sp());
                     inner.push(expr_doc(expr));

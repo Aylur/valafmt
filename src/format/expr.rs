@@ -52,12 +52,16 @@ fn spine_has_call(e: &Expr) -> bool {
 pub fn expr_doc(e: &Expr) -> Doc {
     match e {
         Expr::Atom(t) | Expr::Error(t) => tok(t),
-        Expr::Global { global_kw, colon_colon, name } => {
-            doc::concat(vec![tok(global_kw), tok(colon_colon), tok(name)])
-        }
-        Expr::Paren { l_paren, expr, r_paren } => {
-            doc::concat(vec![tok(l_paren), expr_doc(expr), tok(r_paren)])
-        }
+        Expr::Global {
+            global_kw,
+            colon_colon,
+            name,
+        } => doc::concat(vec![tok(global_kw), tok(colon_colon), tok(name)]),
+        Expr::Paren {
+            l_paren,
+            expr,
+            r_paren,
+        } => doc::concat(vec![tok(l_paren), expr_doc(expr), tok(r_paren)]),
         Expr::Member { .. }
         | Expr::Call { .. }
         | Expr::Index { .. }
@@ -74,33 +78,45 @@ pub fn expr_doc(e: &Expr) -> Doc {
         }
         // No space after cast-like prefix operators: `(int)x`, `(!)x`,
         // `(owned)x`.
-        Expr::Cast { l_paren, ty, r_paren, expr } => doc::concat(vec![
+        Expr::Cast {
+            l_paren,
+            ty,
+            r_paren,
+            expr,
+        } => doc::concat(vec![
             tok(l_paren),
             type_doc(ty),
             tok(r_paren),
             expr_doc(expr),
         ]),
-        Expr::NonNullCast { l_paren, bang, r_paren, expr } => doc::concat(vec![
-            tok(l_paren),
-            tok(bang),
-            tok(r_paren),
-            expr_doc(expr),
-        ]),
-        Expr::OwnershipTransfer { l_paren, owned_kw, r_paren, expr } => doc::concat(vec![
+        Expr::NonNullCast {
+            l_paren,
+            bang,
+            r_paren,
+            expr,
+        } => doc::concat(vec![tok(l_paren), tok(bang), tok(r_paren), expr_doc(expr)]),
+        Expr::OwnershipTransfer {
+            l_paren,
+            owned_kw,
+            r_paren,
+            expr,
+        } => doc::concat(vec![
             tok(l_paren),
             tok(owned_kw),
             tok(r_paren),
             expr_doc(expr),
         ]),
         Expr::Binary { .. } => doc::group(binary_chain_doc(e)),
-        Expr::TypeOp { expr, op, ty } => doc::concat(vec![
-            expr_doc(expr),
-            sp(),
-            tok(op),
-            sp(),
-            type_doc(ty),
-        ]),
-        Expr::Ternary { cond, question, then, colon, els } => doc::group(doc::concat(vec![
+        Expr::TypeOp { expr, op, ty } => {
+            doc::concat(vec![expr_doc(expr), sp(), tok(op), sp(), type_doc(ty)])
+        }
+        Expr::Ternary {
+            cond,
+            question,
+            then,
+            colon,
+            els,
+        } => doc::group(doc::concat(vec![
             expr_doc(cond),
             doc::indent(doc::concat(vec![
                 doc::line(),
@@ -113,8 +129,17 @@ pub fn expr_doc(e: &Expr) -> Doc {
                 expr_doc(els),
             ])),
         ])),
-        Expr::Lambda { params, arrow, body } => lambda_doc(params, arrow, body),
-        Expr::New { new_kw, ty, args, initializer } => {
+        Expr::Lambda {
+            params,
+            arrow,
+            body,
+        } => lambda_doc(params, arrow, body),
+        Expr::New {
+            new_kw,
+            ty,
+            args,
+            initializer,
+        } => {
             let mut out = vec![tok(new_kw), sp(), type_doc(ty)];
             if let Some(a) = args {
                 out.push(call_args_doc(&a.l_paren, &a.args, &a.r_paren));
@@ -126,9 +151,18 @@ pub fn expr_doc(e: &Expr) -> Doc {
             doc::concat(out)
         }
         Expr::Initializer(init) => initializer_doc(init),
-        Expr::Typeof { kw, l_paren, ty, r_paren } | Expr::Sizeof { kw, l_paren, ty, r_paren } => {
-            doc::concat(vec![tok(kw), tok(l_paren), type_doc(ty), tok(r_paren)])
+        Expr::Typeof {
+            kw,
+            l_paren,
+            ty,
+            r_paren,
         }
+        | Expr::Sizeof {
+            kw,
+            l_paren,
+            ty,
+            r_paren,
+        } => doc::concat(vec![tok(kw), tok(l_paren), type_doc(ty), tok(r_paren)]),
         Expr::Yield { yield_kw, expr } => doc::concat(vec![tok(yield_kw), sp(), expr_doc(expr)]),
         Expr::Assign { lhs, op, rhs } => {
             let mut out = vec![expr_doc(lhs), sp()];
@@ -153,7 +187,11 @@ fn lambda_doc(params: &LambdaParams, arrow: &Token, body: &LambdaBody) -> Doc {
     let mut out = Vec::new();
     match params {
         LambdaParams::Single(t) => out.push(tok(t)),
-        LambdaParams::List { l_paren, params, r_paren } => {
+        LambdaParams::List {
+            l_paren,
+            params,
+            r_paren,
+        } => {
             out.push(tok(l_paren));
             for (i, p) in params.items.iter().enumerate() {
                 if i > 0 {
@@ -177,7 +215,10 @@ fn lambda_doc(params: &LambdaParams, arrow: &Token, body: &LambdaBody) -> Doc {
             out.push(block_doc(b));
         }
         LambdaBody::Expr(e) => {
-            out.push(doc::group(doc::indent(doc::concat(vec![doc::line(), expr_doc(e)]))));
+            out.push(doc::group(doc::indent(doc::concat(vec![
+                doc::line(),
+                expr_doc(e),
+            ]))));
         }
     }
     doc::concat(out)
@@ -261,7 +302,11 @@ enum Link<'a> {
         r_paren: &'a Token,
         initializer: &'a Option<InitializerList>,
     },
-    Index { l_bracket: &'a Token, indices: &'a Punctuated<Expr>, r_bracket: &'a Token },
+    Index {
+        l_bracket: &'a Token,
+        indices: &'a Punctuated<Expr>,
+        r_bracket: &'a Token,
+    },
     Slice {
         l_bracket: &'a Token,
         start: &'a Option<Box<Expr>>,
@@ -269,26 +314,74 @@ enum Link<'a> {
         end: &'a Option<Box<Expr>>,
         r_bracket: &'a Token,
     },
-    Postfix { op: &'a Token },
+    Postfix {
+        op: &'a Token,
+    },
 }
 
 fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
     loop {
         match e {
-            Expr::Member { base, op, op2, name, type_args } => {
-                links.push(Link::Member { op, op2, name, type_args });
+            Expr::Member {
+                base,
+                op,
+                op2,
+                name,
+                type_args,
+            } => {
+                links.push(Link::Member {
+                    op,
+                    op2,
+                    name,
+                    type_args,
+                });
                 e = base;
             }
-            Expr::Call { callee, type_args, l_paren, args, r_paren, initializer } => {
-                links.push(Link::Call { type_args, l_paren, args, r_paren, initializer });
+            Expr::Call {
+                callee,
+                type_args,
+                l_paren,
+                args,
+                r_paren,
+                initializer,
+            } => {
+                links.push(Link::Call {
+                    type_args,
+                    l_paren,
+                    args,
+                    r_paren,
+                    initializer,
+                });
                 e = callee;
             }
-            Expr::Index { base, l_bracket, indices, r_bracket } => {
-                links.push(Link::Index { l_bracket, indices, r_bracket });
+            Expr::Index {
+                base,
+                l_bracket,
+                indices,
+                r_bracket,
+            } => {
+                links.push(Link::Index {
+                    l_bracket,
+                    indices,
+                    r_bracket,
+                });
                 e = base;
             }
-            Expr::Slice { base, l_bracket, start, colon, end, r_bracket } => {
-                links.push(Link::Slice { l_bracket, start, colon, end, r_bracket });
+            Expr::Slice {
+                base,
+                l_bracket,
+                start,
+                colon,
+                end,
+                r_bracket,
+            } => {
+                links.push(Link::Slice {
+                    l_bracket,
+                    start,
+                    colon,
+                    end,
+                    r_bracket,
+                });
                 e = base;
             }
             Expr::PostfixIncDec { base, op } => {
@@ -305,7 +398,10 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
 /// lambda breaks internally.
 fn huggable_last_arg(args: &Punctuated<Arg>) -> bool {
     match args.items.last() {
-        Some(Arg { expr: Expr::Lambda { .. }, .. }) => true,
+        Some(Arg {
+            expr: Expr::Lambda { .. },
+            ..
+        }) => true,
         _ => false,
     }
 }
@@ -317,21 +413,41 @@ fn chain_doc(e: &Expr) -> Doc {
 
     // Count breakable member links to decide whether the chain may break
     // before dots at all (short chains never do; they rely on arg breaking).
-    let member_count = links.iter().filter(|l| matches!(l, Link::Member { .. })).count();
-    let call_count = links.iter().filter(|l| matches!(l, Link::Call { .. })).count();
+    let member_count = links
+        .iter()
+        .filter(|l| matches!(l, Link::Member { .. }))
+        .count();
+    let call_count = links
+        .iter()
+        .filter(|l| matches!(l, Link::Call { .. }))
+        .count();
     let fluent = member_count >= 3 && call_count >= 2;
 
     // Hug detection: the final link is a call whose last argument is a lambda.
-    let hug_final_call = matches!(links.last(), Some(Link::Call { args, .. }) if huggable_last_arg(args));
+    let hug_final_call =
+        matches!(links.last(), Some(Link::Call { args, .. }) if huggable_last_arg(args));
 
     let mut chain_parts = vec![expr_doc(base)];
-    let split_at = if hug_final_call { links.len() - 1 } else { links.len() };
+    let split_at = if hug_final_call {
+        links.len() - 1
+    } else {
+        links.len()
+    };
     let mut tail_parts = Vec::new();
 
     for (i, link) in links.iter().enumerate() {
-        let target = if i < split_at { &mut chain_parts } else { &mut tail_parts };
+        let target = if i < split_at {
+            &mut chain_parts
+        } else {
+            &mut tail_parts
+        };
         match link {
-            Link::Member { op, op2, name, type_args } => {
+            Link::Member {
+                op,
+                op2,
+                name,
+                type_args,
+            } => {
                 if fluent && op.kind == TokenKind::Dot {
                     target.push(doc::softline());
                 }
@@ -345,7 +461,13 @@ fn chain_doc(e: &Expr) -> Doc {
                     target.push(type_args_doc(args));
                 }
             }
-            Link::Call { type_args, l_paren, args, r_paren, initializer } => {
+            Link::Call {
+                type_args,
+                l_paren,
+                args,
+                r_paren,
+                initializer,
+            } => {
                 if let Some(ta) = type_args {
                     target.push(type_args_doc(ta));
                 }
@@ -359,7 +481,11 @@ fn chain_doc(e: &Expr) -> Doc {
                     target.push(initializer_doc(init));
                 }
             }
-            Link::Index { l_bracket, indices, r_bracket } => {
+            Link::Index {
+                l_bracket,
+                indices,
+                r_bracket,
+            } => {
                 target.push(tok(l_bracket));
                 for (j, idx) in indices.items.iter().enumerate() {
                     if j > 0 {
@@ -370,7 +496,13 @@ fn chain_doc(e: &Expr) -> Doc {
                 }
                 target.push(tok(r_bracket));
             }
-            Link::Slice { l_bracket, start, colon, end, r_bracket } => {
+            Link::Slice {
+                l_bracket,
+                start,
+                colon,
+                end,
+                r_bracket,
+            } => {
                 target.push(tok(l_bracket));
                 if let Some(s) = start {
                     target.push(expr_doc(s));
@@ -387,7 +519,10 @@ fn chain_doc(e: &Expr) -> Doc {
 
     let head = if fluent {
         let first = chain_parts.remove(0);
-        doc::group(doc::concat(vec![first, doc::indent(doc::concat(chain_parts))]))
+        doc::group(doc::concat(vec![
+            first,
+            doc::indent(doc::concat(chain_parts)),
+        ]))
     } else {
         doc::concat(chain_parts)
     };
@@ -469,7 +604,10 @@ pub fn initializer_doc(init: &InitializerList) -> Doc {
     // closing bracket as inert.
     let trailing_comma = if init.items.commas.len() == init.items.items.len() {
         // Emit the source's trailing comma token (it may carry comments).
-        doc::if_break(tok(&init.items.commas[init.items.items.len() - 1]), doc::nil())
+        doc::if_break(
+            tok(&init.items.commas[init.items.items.len() - 1]),
+            doc::nil(),
+        )
     } else {
         doc::if_break(doc::text(","), doc::nil())
     };

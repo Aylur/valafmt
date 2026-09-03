@@ -37,7 +37,10 @@ impl fmt::Display for FormatError {
                 Ok(())
             }
             FormatError::SafetyCheck(msg) => {
-                write!(f, "internal error (input left unchanged, please report): {msg}")
+                write!(
+                    f,
+                    "internal error (input left unchanged, please report): {msg}"
+                )
             }
         }
     }
@@ -48,7 +51,12 @@ pub(crate) fn diagnostics_from_lex(src: &str, errors: &[lexer::LexError]) -> Vec
         .iter()
         .map(|e| {
             let (line, col) = lexer::cursor::Cursor::line_col(src, e.offset);
-            Diagnostic { offset: e.offset, line, col, message: e.message.clone() }
+            Diagnostic {
+                offset: e.offset,
+                line,
+                col,
+                message: e.message.clone(),
+            }
         })
         .collect()
 }
@@ -69,7 +77,12 @@ pub fn format_source(src: &str, options: &Options) -> Result<String, FormatError
                  format files whose branches each form valid syntax on their own",
             );
         }
-        FormatError::Parse(vec![Diagnostic { offset: e.offset, line, col, message }])
+        FormatError::Parse(vec![Diagnostic {
+            offset: e.offset,
+            line,
+            col,
+            message,
+        }])
     })?;
     let doc = format::format_file(&file, src);
     let output = doc::printer::print(&doc, options);

@@ -65,13 +65,17 @@ fn walk(path: &Path, stats: &mut Stats) {
     if ext != "vala" {
         return;
     }
-    let Ok(src) = std::fs::read_to_string(path) else { return };
+    let Ok(src) = std::fs::read_to_string(path) else {
+        return;
+    };
     stats.files += 1;
     let name = path.display().to_string();
 
     let lexed = valafmt::lexer::lex(&src);
     if !lexed.errors.is_empty() {
-        stats.failures.push((name, format!("lex: {}", lexed.errors[0].message)));
+        stats
+            .failures
+            .push((name, format!("lex: {}", lexed.errors[0].message)));
         return;
     }
     stats.lex_ok += 1;
@@ -79,7 +83,9 @@ fn walk(path: &Path, stats: &mut Stats) {
     match valafmt::parser::parse(lexed.tokens) {
         Err(e) => {
             let (line, col) = valafmt::lexer::cursor::Cursor::line_col(&src, e.offset);
-            stats.failures.push((name, format!("parse {line}:{col}: {}", e.message)));
+            stats
+                .failures
+                .push((name, format!("parse {line}:{col}: {}", e.message)));
             return;
         }
         Ok(_) => stats.parse_ok += 1,

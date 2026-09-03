@@ -330,7 +330,9 @@ impl Token {
     }
 
     pub fn has_leading_comment(&self) -> bool {
-        self.leading.iter().any(|t| t.is_comment() || t.kind == TriviaKind::Directive)
+        self.leading
+            .iter()
+            .any(|t| t.is_comment() || t.kind == TriviaKind::Directive)
     }
 
     pub fn has_trailing_comment(&self) -> bool {

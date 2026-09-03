@@ -9,9 +9,7 @@ use valafmt::{format_source, FormatError, Options};
 #[command(
     name = "valafmt",
     version,
-    about = "An opinionated, Prettier-style formatter for Vala",
-    after_help = "With no PATHS, reads from stdin and writes the result to stdout.\n\
-                  Exit codes: 0 ok, 1 --check found differences, 2 parse error, 3 internal error."
+    about = "An opinionated code formatter for Vala"
 )]
 pub struct Args {
     /// Files or directories to format in place (directories are searched
@@ -28,7 +26,7 @@ pub struct Args {
 
     /// Preferred maximum line width.
     #[arg(long, default_value_t = 100)]
-    pub line_width: u16,
+    pub width: u16,
 
     /// Indentation width in spaces.
     #[arg(long, default_value_t = 4)]
@@ -41,7 +39,10 @@ pub struct Args {
 
 pub fn run() -> ExitCode {
     let args = Args::parse();
-    let options = Options { line_width: args.line_width, indent: args.indent };
+    let options = Options {
+        width: args.width,
+        indent: args.indent,
+    };
 
     if args.dump_tokens {
         return dump_tokens_mode(&args);
@@ -98,7 +99,13 @@ pub fn run() -> ExitCode {
             }
             Err(FormatError::Parse(diags)) => {
                 for d in diags {
-                    eprintln!("{}:{}:{}: error: {}", file.display(), d.line, d.col, d.message);
+                    eprintln!(
+                        "{}:{}:{}: error: {}",
+                        file.display(),
+                        d.line,
+                        d.col,
+                        d.message
+                    );
                 }
                 errors += 1;
             }
@@ -154,7 +161,9 @@ fn stdin_mode(args: &Args, options: &Options) -> ExitCode {
 }
 
 fn collect_vala_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
         let name = entry.file_name();

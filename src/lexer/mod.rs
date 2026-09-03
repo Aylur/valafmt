@@ -42,7 +42,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn error(&mut self, offset: usize, message: impl Into<String>) {
-        self.errors.push(LexError { offset, message: message.into() });
+        self.errors.push(LexError {
+            offset,
+            message: message.into(),
+        });
     }
 
     fn run(mut self) -> LexResult {
@@ -74,8 +77,9 @@ impl<'a> Lexer<'a> {
                     | TokenKind::Comma
                     | TokenKind::Colon
             ) {
-                if let Some(idx) =
-                    trailing.iter().position(|t| t.kind == TriviaKind::LineComment)
+                if let Some(idx) = trailing
+                    .iter()
+                    .position(|t| t.kind == TriviaKind::LineComment)
                 {
                     let moved: Vec<Trivia> = trailing.split_off(idx);
                     let mut new_pending = moved;
@@ -83,11 +87,20 @@ impl<'a> Lexer<'a> {
                     self.pending_leading = new_pending;
                 }
             }
-            self.tokens.push(Token { kind, text, offset, leading, trailing });
+            self.tokens.push(Token {
+                kind,
+                text,
+                offset,
+                leading,
+                trailing,
+            });
             leading = std::mem::take(&mut self.pending_leading);
             leading.extend(self.scan_trivia(false));
         }
-        LexResult { tokens: self.tokens, errors: self.errors }
+        LexResult {
+            tokens: self.tokens,
+            errors: self.errors,
+        }
     }
 
     /// Scan trivia in leading position: whitespace runs, comments on their own
@@ -113,7 +126,8 @@ impl<'a> Lexer<'a> {
                     if saw_newline {
                         at_line_start = true;
                     }
-                    out.push(Trivia { offset: start,
+                    out.push(Trivia {
+                        offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
@@ -121,21 +135,27 @@ impl<'a> Lexer<'a> {
                 0xEF if self.cur.starts_with("\u{FEFF}") => {
                     // Byte-order mark: fold into whitespace trivia.
                     self.cur.bump_char();
-                    out.push(Trivia { offset: start,
+                    out.push(Trivia {
+                        offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'/' => {
                     self.scan_line_comment();
-                    out.push(Trivia { offset: start,
+                    out.push(Trivia {
+                        offset: start,
                         kind: TriviaKind::LineComment,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'*' => {
                     let kind = self.scan_block_comment();
-                    out.push(Trivia { kind, text: self.cur.slice_from(start).to_string(), offset: start });
+                    out.push(Trivia {
+                        kind,
+                        text: self.cur.slice_from(start).to_string(),
+                        offset: start,
+                    });
                 }
                 b'#' if at_line_start => {
                     while !self.cur.is_eof() && self.cur.peek() != b'\n' {
@@ -148,7 +168,11 @@ impl<'a> Lexer<'a> {
                         // Give the '\r' back so it joins the following
                         // whitespace run and round-tripping stays byte-exact.
                         // (Cursor cannot rewind; emit it as its own run.)
-                        out.push(Trivia { kind: TriviaKind::Directive, text, offset: start });
+                        out.push(Trivia {
+                            kind: TriviaKind::Directive,
+                            text,
+                            offset: start,
+                        });
                         out.push(Trivia {
                             kind: TriviaKind::Whitespace,
                             text: "\r".into(),
@@ -156,7 +180,11 @@ impl<'a> Lexer<'a> {
                         });
                         continue;
                     }
-                    out.push(Trivia { kind: TriviaKind::Directive, text, offset: start });
+                    out.push(Trivia {
+                        kind: TriviaKind::Directive,
+                        text,
+                        offset: start,
+                    });
                 }
                 _ => break,
             }
@@ -184,14 +212,16 @@ impl<'a> Lexer<'a> {
                     for _ in 0..n {
                         self.cur.bump();
                     }
-                    out.push(Trivia { offset: start,
+                    out.push(Trivia {
+                        offset: start,
                         kind: TriviaKind::Whitespace,
                         text: self.cur.slice_from(start).to_string(),
                     });
                 }
                 b'/' if self.cur.peek_at(1) == b'/' => {
                     self.scan_line_comment();
-                    out.push(Trivia { offset: start,
+                    out.push(Trivia {
+                        offset: start,
                         kind: TriviaKind::LineComment,
                         text: self.cur.slice_from(start).to_string(),
                     });
@@ -203,10 +233,18 @@ impl<'a> Lexer<'a> {
                     let kind = self.scan_block_comment();
                     let text = self.cur.slice_from(save).to_string();
                     if text.contains('\n') {
-                        self.pending_leading.push(Trivia { kind, text, offset: save });
+                        self.pending_leading.push(Trivia {
+                            kind,
+                            text,
+                            offset: save,
+                        });
                         break;
                     }
-                    out.push(Trivia { kind, text, offset: save });
+                    out.push(Trivia {
+                        kind,
+                        text,
+                        offset: save,
+                    });
                 }
                 _ => break,
             }
@@ -473,7 +511,13 @@ impl<'a> Lexer<'a> {
                 Hash
             }
             _ => {
-                self.error(start, format!("unexpected character {:?}", &self.src[start..].chars().next().unwrap_or('\u{FFFD}')));
+                self.error(
+                    start,
+                    format!(
+                        "unexpected character {:?}",
+                        &self.src[start..].chars().next().unwrap_or('\u{FFFD}')
+                    ),
+                );
                 self.cur.bump_char();
                 Error
             }
@@ -506,7 +550,20 @@ impl<'a> Lexer<'a> {
             }
             let next = self.cur.peek_at(n);
             let is_identish = matches!(next, b'a'..=b'z' | b'A'..=b'Z' | b'_')
-                && !matches!(next, b'x' | b'X' | b'e' | b'E' | b'u' | b'U' | b'l' | b'L' | b'f' | b'F' | b'd' | b'D');
+                && !matches!(
+                    next,
+                    b'x' | b'X'
+                        | b'e'
+                        | b'E'
+                        | b'u'
+                        | b'U'
+                        | b'l'
+                        | b'L'
+                        | b'f'
+                        | b'F'
+                        | b'd'
+                        | b'D'
+                );
             if is_identish {
                 while matches!(
                     self.cur.peek(),

@@ -144,7 +144,11 @@ pub fn type_doc(ty: &Type) -> Doc {
                 out.push(type_args_doc(args));
             }
         }
-        TypeCore::Paren { l_paren, inner, r_paren } => {
+        TypeCore::Paren {
+            l_paren,
+            inner,
+            r_paren,
+        } => {
             out.push(tok(l_paren));
             out.push(type_doc(inner));
             out.push(tok(r_paren));
@@ -153,7 +157,12 @@ pub fn type_doc(ty: &Type) -> Doc {
     for s in &ty.suffixes {
         match s {
             TypeSuffix::Nullable(t) | TypeSuffix::Pointer(t) => out.push(tok(t)),
-            TypeSuffix::Array { l_bracket, dims, r_bracket, nullable } => {
+            TypeSuffix::Array {
+                l_bracket,
+                dims,
+                r_bracket,
+                nullable,
+            } => {
                 out.push(tok(l_bracket));
                 for (i, dim) in dims.items.iter().enumerate() {
                     if let Some(e) = dim {
@@ -259,9 +268,7 @@ fn member_kind_doc(kind: &MemberKind) -> Doc {
             sp(),
             decl_body_doc(&n.body),
         ]),
-        MemberKind::Class(t) | MemberKind::Interface(t) | MemberKind::Struct(t) => {
-            type_decl_doc(t)
-        }
+        MemberKind::Class(t) | MemberKind::Interface(t) | MemberKind::Struct(t) => type_decl_doc(t),
         MemberKind::Enum(e) | MemberKind::Errordomain(e) => enum_decl_doc(e),
         MemberKind::Delegate(d) => {
             let mut out = vec![
@@ -299,7 +306,12 @@ fn member_kind_doc(kind: &MemberKind) -> Doc {
             doc::concat(out)
         }
         MemberKind::Field(f) => {
-            let mut out = vec![modifiers_doc(&f.modifiers), type_doc(&f.ty), sp(), tok(&f.name)];
+            let mut out = vec![
+                modifiers_doc(&f.modifiers),
+                type_doc(&f.ty),
+                sp(),
+                tok(&f.name),
+            ];
             out.push(c_array_doc(&f.array));
             if let Some((eq, init)) = &f.init {
                 out.push(assign_rhs_doc(eq, init));
@@ -373,7 +385,12 @@ pub fn method_decl_doc(m: &MethodDecl) -> Doc {
 }
 
 fn type_decl_doc(t: &TypeDecl) -> Doc {
-    let mut out = vec![modifiers_doc(&t.modifiers), tok(&t.keyword), sp(), qualified_name_doc(&t.name)];
+    let mut out = vec![
+        modifiers_doc(&t.modifiers),
+        tok(&t.keyword),
+        sp(),
+        qualified_name_doc(&t.name),
+    ];
     if let Some(tp) = &t.type_params {
         out.push(type_params_doc(tp));
     }
@@ -390,7 +407,10 @@ fn type_decl_doc(t: &TypeDecl) -> Doc {
         }
         out.push(sp());
         out.push(tok(&base.colon));
-        out.push(doc::group(doc::indent(doc::concat(vec![doc::line(), doc::concat(list)]))));
+        out.push(doc::group(doc::indent(doc::concat(vec![
+            doc::line(),
+            doc::concat(list),
+        ]))));
     }
     out.push(sp());
     out.push(decl_body_doc(&t.body));
@@ -411,7 +431,12 @@ fn type_params_doc(tp: &TypeParamList) -> Doc {
 }
 
 fn enum_decl_doc(e: &EnumDecl) -> Doc {
-    let mut out = vec![modifiers_doc(&e.modifiers), tok(&e.keyword), sp(), qualified_name_doc(&e.name)];
+    let mut out = vec![
+        modifiers_doc(&e.modifiers),
+        tok(&e.keyword),
+        sp(),
+        qualified_name_doc(&e.name),
+    ];
     if let Some(base) = &e.base {
         out.push(sp());
         out.push(tok(&base.colon));
@@ -471,7 +496,10 @@ fn enum_decl_doc(e: &EnumDecl) -> Doc {
 }
 
 fn enum_value_first_token(v: &EnumValue) -> &Token {
-    v.attributes.first().map(|a| &a.l_bracket).unwrap_or(&v.name)
+    v.attributes
+        .first()
+        .map(|a| &a.l_bracket)
+        .unwrap_or(&v.name)
 }
 
 fn property_doc(p: &PropertyDecl) -> Doc {
@@ -494,7 +522,13 @@ fn property_doc(p: &PropertyDecl) -> Doc {
         .map(property_accessor_first_token)
         .unwrap_or(&p.r_brace);
     let has_block_body = p.accessors.iter().any(|a| {
-        matches!(a, PropertyAccessor::Accessor { body: Body::Block(_), .. })
+        matches!(
+            a,
+            PropertyAccessor::Accessor {
+                body: Body::Block(_),
+                ..
+            }
+        )
     });
     if first_inner_token.leading_newlines() > 0 || (has_block_body && p.accessors.len() > 1) {
         inner.push(doc::break_parent());
@@ -519,7 +553,12 @@ fn property_doc(p: &PropertyDecl) -> Doc {
 
 fn property_accessor_first_token(acc: &PropertyAccessor) -> &Token {
     match acc {
-        PropertyAccessor::Accessor { attributes, modifiers, keywords, .. } => attributes
+        PropertyAccessor::Accessor {
+            attributes,
+            modifiers,
+            keywords,
+            ..
+        } => attributes
             .first()
             .map(|a| &a.l_bracket)
             .or_else(|| modifiers.first())
@@ -530,7 +569,12 @@ fn property_accessor_first_token(acc: &PropertyAccessor) -> &Token {
 
 fn property_accessor_doc(acc: &PropertyAccessor) -> Doc {
     match acc {
-        PropertyAccessor::Accessor { attributes, modifiers, keywords, body } => {
+        PropertyAccessor::Accessor {
+            attributes,
+            modifiers,
+            keywords,
+            body,
+        } => {
             let mut out = Vec::new();
             for attrs in attributes {
                 out.push(attribute_list_doc(attrs));
@@ -546,7 +590,12 @@ fn property_accessor_doc(acc: &PropertyAccessor) -> Doc {
             out.push(accessor_body_doc(body));
             doc::concat(out)
         }
-        PropertyAccessor::Default { default_kw, eq, expr: e, semicolon } => doc::concat(vec![
+        PropertyAccessor::Default {
+            default_kw,
+            eq,
+            expr: e,
+            semicolon,
+        } => doc::concat(vec![
             tok(default_kw),
             sp(),
             tok(eq),
@@ -641,7 +690,9 @@ fn body_doc(body: &Body) -> Doc {
 /// source wrote on one line stays inline (`get { return x; }`); a newline
 /// anywhere inside it in the source keeps it expanded.
 fn accessor_body_doc(body: &Body) -> Doc {
-    let Body::Block(b) = body else { return body_doc(body) };
+    let Body::Block(b) = body else {
+        return body_doc(body);
+    };
     let inline_eligible = b.statements.len() == 1
         && b.statements[0].first_token().leading_newlines() == 0
         && !trivia::has_leading_pieces(b.statements[0].first_token())
@@ -654,7 +705,10 @@ fn accessor_body_doc(body: &Body) -> Doc {
         sp(),
         doc::group(doc::concat(vec![
             tok(&b.l_brace),
-            doc::indent(doc::concat(vec![doc::line(), stmt::stmt_doc(&b.statements[0])])),
+            doc::indent(doc::concat(vec![
+                doc::line(),
+                stmt::stmt_doc(&b.statements[0]),
+            ])),
             doc::line(),
             token_text(&b.r_brace),
             doc::concat(trailing_docs(&b.r_brace.trailing)),
@@ -663,14 +717,23 @@ fn accessor_body_doc(body: &Body) -> Doc {
 }
 
 fn decl_body_doc(body: &DeclBody) -> Doc {
-    let mut inner =
-        item_list_docs(&body.members, &body.r_brace, true, |m| m.first_token(), member_doc);
+    let mut inner = item_list_docs(
+        &body.members,
+        &body.r_brace,
+        true,
+        |m| m.first_token(),
+        member_doc,
+    );
     for p in leading_parts(&body.r_brace.leading) {
         inner.push(doc::hardline());
         inner.push(p);
     }
     if inner.is_empty() {
-        return doc::concat(vec![tok(&body.l_brace), token_text(&body.r_brace), doc::concat(trailing_docs(&body.r_brace.trailing))]);
+        return doc::concat(vec![
+            tok(&body.l_brace),
+            token_text(&body.r_brace),
+            doc::concat(trailing_docs(&body.r_brace.trailing)),
+        ]);
     }
     doc::concat(vec![
         tok(&body.l_brace),

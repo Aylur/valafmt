@@ -13,7 +13,7 @@ enum Mode {
 pub fn print(doc: &Doc, options: &Options) -> String {
     let doc = propagate_breaks(doc).0;
     Printer {
-        width: options.line_width as isize,
+        width: options.width as isize,
         indent_width: options.indent as usize,
         out: String::new(),
         col: 0,
@@ -40,11 +40,22 @@ fn propagate_breaks(doc: &Doc) -> (Doc, bool) {
             }
             (Doc::Concat(out), forces)
         }
-        Doc::Group { id, should_break, doc } => {
+        Doc::Group {
+            id,
+            should_break,
+            doc,
+        } => {
             let (inner, f) = propagate_breaks(doc);
             let sb = *should_break || f;
             // A broken group forces its parents to break too.
-            (Doc::Group { id: *id, should_break: sb, doc: Box::new(inner) }, sb)
+            (
+                Doc::Group {
+                    id: *id,
+                    should_break: sb,
+                    doc: Box::new(inner),
+                },
+                sb,
+            )
         }
         Doc::Indent(inner) => {
             let (d, f) = propagate_breaks(inner);
@@ -53,11 +64,22 @@ fn propagate_breaks(doc: &Doc) -> (Doc, bool) {
         Doc::Line => (Doc::Line, false),
         Doc::SoftLine => (Doc::SoftLine, false),
         Doc::HardLine => (Doc::HardLine, true),
-        Doc::IfBreak { broken, flat, group } => {
+        Doc::IfBreak {
+            broken,
+            flat,
+            group,
+        } => {
             // Contents chosen at print time; measure neither as forcing.
             let (b, _) = propagate_breaks(broken);
             let (f, _) = propagate_breaks(flat);
-            (Doc::IfBreak { broken: Box::new(b), flat: Box::new(f), group: *group }, false)
+            (
+                Doc::IfBreak {
+                    broken: Box::new(b),
+                    flat: Box::new(f),
+                    group: *group,
+                },
+                false,
+            )
         }
         Doc::LineSuffix(inner) => {
             let (d, _) = propagate_breaks(inner);
@@ -102,7 +124,11 @@ impl<'a> Printer<'a> {
                         cmds.push((ind, mode, c));
                     }
                 }
-                Doc::Group { id, should_break, doc: inner } => {
+                Doc::Group {
+                    id,
+                    should_break,
+                    doc: inner,
+                } => {
                     let group_mode = if *should_break {
                         Mode::Break
                     } else if self.fits(&(ind, Mode::Flat, inner), &cmds) {
@@ -131,7 +157,11 @@ impl<'a> Printer<'a> {
                     }
                 }
                 Doc::HardLine => self.newline(ind),
-                Doc::IfBreak { broken, flat, group } => {
+                Doc::IfBreak {
+                    broken,
+                    flat,
+                    group,
+                } => {
                     let m = match group {
                         Some(id) => self.group_modes.get(id).copied().unwrap_or(mode),
                         None => mode,
@@ -220,7 +250,11 @@ impl<'a> Printer<'a> {
                         cmds.push((ind, mode, c));
                     }
                 }
-                Doc::Group { should_break, doc: inner, .. } => {
+                Doc::Group {
+                    should_break,
+                    doc: inner,
+                    ..
+                } => {
                     let m = if *should_break { Mode::Break } else { mode };
                     cmds.push((ind, m, inner));
                 }
@@ -235,7 +269,11 @@ impl<'a> Printer<'a> {
                     }
                 }
                 Doc::HardLine => return true,
-                Doc::IfBreak { broken, flat, group } => {
+                Doc::IfBreak {
+                    broken,
+                    flat,
+                    group,
+                } => {
                     let m = match group {
                         Some(id) => self.group_modes.get(id).copied().unwrap_or(mode),
                         None => mode,
@@ -290,7 +328,7 @@ mod tests {
     use crate::doc::*;
 
     fn opts(width: u16) -> Options {
-        Options { line_width: width, indent: 4 }
+        Options { width, indent: 4 }
     }
 
     #[test]
@@ -308,7 +346,12 @@ mod tests {
     fn breaks_when_too_wide() {
         let d = group(concat(vec![
             text("foo("),
-            indent(concat(vec![softline(), text("aaaaaaaa,"), line(), text("bbbbbbbb")])),
+            indent(concat(vec![
+                softline(),
+                text("aaaaaaaa,"),
+                line(),
+                text("bbbbbbbb"),
+            ])),
             softline(),
             text(")"),
         ]));
@@ -319,7 +362,13 @@ mod tests {
     fn hardline_propagates() {
         let d = group(concat(vec![
             text("call("),
-            indent(concat(vec![softline(), text("() => {"), indent(hardline()), hardline(), text("}")])),
+            indent(concat(vec![
+                softline(),
+                text("() => {"),
+                indent(hardline()),
+                hardline(),
+                text("}"),
+            ])),
             softline(),
             text(")"),
         ]));
@@ -333,14 +382,21 @@ mod tests {
         let mk = || {
             group(concat(vec![
                 text("f("),
-                indent(concat(vec![softline(), text("x"), if_break(text(","), nil())])),
+                indent(concat(vec![
+                    softline(),
+                    text("x"),
+                    if_break(text(","), nil()),
+                ])),
                 softline(),
                 text(")"),
             ]))
         };
         assert_eq!(print(&mk(), &opts(80)), "f(x)");
         let d2 = concat(vec![text("aaaaaaaaaaaaaaaaaaaa = "), mk()]);
-        assert_eq!(print(&d2, &opts(10)), "aaaaaaaaaaaaaaaaaaaa = f(\n    x,\n)");
+        assert_eq!(
+            print(&d2, &opts(10)),
+            "aaaaaaaaaaaaaaaaaaaa = f(\n    x,\n)"
+        );
     }
 
     #[test]
@@ -358,7 +414,11 @@ mod tests {
     fn literal_not_reindented() {
         let d = group(concat(vec![
             text("var s = "),
-            indent(concat(vec![softline(), literal("\"\"\"a\n  b\"\"\""), text(";")])),
+            indent(concat(vec![
+                softline(),
+                literal("\"\"\"a\n  b\"\"\""),
+                text(";"),
+            ])),
         ]));
         let out = print(&d, &opts(80));
         assert!(out.contains("\n  b\"\"\""), "got: {out}");
