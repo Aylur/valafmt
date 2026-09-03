@@ -4,11 +4,12 @@ An opinionated code formatter for [Vala](https://vala.dev).
 
 > [!NOTE]
 >
-> _This project is vibe coded_. I feel like formatting is a trivial and boring
-> problem that has been solved numerous times and it is completely fine to let
-> an LLM generate another one. I was not happy with uncrustify or elementary's
-> formatter, I just wanted the [Prettier](https://prettier.io/) for Vala, but
-> did not have the will or the time to write it myself.
+> _This project is vibe coded_. I feel like formatting is a boring,
+> well-understood problem that has been solved numerous times and it is
+> completely fine to let an LLM generate another one. I was not happy with
+> uncrustify or elementary's formatter, I just wanted the
+> [Prettier](https://prettier.io/) for Vala, but did not have the will or the
+> time to write it myself.
 
 ## Known limitation
 
