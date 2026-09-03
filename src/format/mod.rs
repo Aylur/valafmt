@@ -414,14 +414,19 @@ fn property_doc(p: &PropertyDecl) -> Doc {
     ];
     // `{ get; set; }` stays inline when the source wrote it inline and it
     // fits; a newline after `{` in the source (or a multi-line accessor
-    // body) keeps the property expanded.
+    // body) keeps the property expanded. A property with several accessors
+    // where any has a block body always expands — only a single block-bodied
+    // accessor may share the property line.
     let mut inner = Vec::new();
     let first_inner_token = p
         .accessors
         .first()
         .map(property_accessor_first_token)
         .unwrap_or(&p.r_brace);
-    if first_inner_token.leading_newlines() > 0 {
+    let has_block_body = p.accessors.iter().any(|a| {
+        matches!(a, PropertyAccessor::Accessor { body: Body::Block(_), .. })
+    });
+    if first_inner_token.leading_newlines() > 0 || (has_block_body && p.accessors.len() > 1) {
         inner.push(doc::break_parent());
     }
     for acc in &p.accessors {

@@ -20,3 +20,10 @@ public class Inline : Object {
         }
     }
 }
+
+public class BothRule : Object {
+    public int both_inline_source { get { return a; } set { a = value; } }
+    public int single_stays { get { return a; } }
+    public int bodyless_stays { get; set; }
+    public int body_and_default { get { return a; } default = 1; }
+}
