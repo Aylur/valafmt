@@ -1,20 +1,18 @@
 ---
 source: tests/format.rs
-assertion_line: 20
+assertion_line: 25
 expression: out
 input_file: tests/cases/basic.vala
 ---
 using Gtk;
 using GLib, Gee;
 
-namespace Demo.Core {
-    public class Widget : Object {
-        private int count = 0;
-        public const string NAME = "widget";
+public class Demo.Core.Widget : Object {
+    private int count = 0;
+    public const string NAME = "widget";
 
-        public int add(int a, int b) {
-            return a + b;
-        }
+    public int add(int a, int b) {
+        return a + b;
     }
 }
 
