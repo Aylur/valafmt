@@ -599,10 +599,12 @@ pub fn initializer_doc(init: &InitializerList) -> Doc {
         }
         inner.push(arg_doc(item));
     }
-    // A trailing comma in source is dropped flat / kept broken; one is added
-    // when the list breaks. The safety check treats trailing commas before a
-    // closing bracket as inert.
+    // A trailing comma in source forces the list to break (the author asked
+    // for one item per line); without one the list collapses when it fits and
+    // gets a comma added when it breaks. The safety check treats trailing
+    // commas before a closing bracket as inert.
     let trailing_comma = if init.items.commas.len() == init.items.items.len() {
+        inner.push(doc::break_parent());
         // Emit the source's trailing comma token (it may carry comments).
         doc::if_break(
             tok(&init.items.commas[init.items.items.len() - 1]),
