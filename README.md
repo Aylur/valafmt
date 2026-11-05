@@ -37,3 +37,8 @@ var mx = matrix(
 ```
 
 You can also mark a range with `valafmt-ignore-start` and `valafmt-ignore-end`
+
+## Ignoring files
+
+Anything matched by `.ignore`, `.gitignore`, `.git/info/exclude` or your global
+git excludes are automatically ignored.

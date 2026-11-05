@@ -12,9 +12,12 @@ use valafmt::{format_source, FormatError, Options};
     about = "An opinionated code formatter for Vala"
 )]
 pub struct Args {
-    /// Files or directories to format in place (directories are searched
-    /// recursively for *.vala and *.vapi files).
+    /// Files or directories to format recursively.
     pub paths: Vec<PathBuf>,
+
+    /// Don't respect .gitignore / .ignore files when searching directories.
+    #[arg(long)]
+    pub no_ignore: bool,
 
     /// Don't write; report files that would change (exit 1 if any).
     #[arg(long)]
@@ -55,7 +58,7 @@ pub fn run() -> ExitCode {
     let mut files = Vec::new();
     for path in &args.paths {
         if path.is_dir() {
-            collect_vala_files(path, &mut files);
+            collect_vala_files(path, !args.no_ignore, &mut files);
         } else {
             files.push(path.clone());
         }
@@ -160,20 +163,32 @@ fn stdin_mode(args: &Args, options: &Options) -> ExitCode {
     }
 }
 
-fn collect_vala_files(dir: &Path, out: &mut Vec<PathBuf>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.filter_map(|e| e.ok()) {
-        let path = entry.path();
-        let name = entry.file_name();
-        let name = name.to_string_lossy();
-        if name.starts_with('.') {
+/// Version control directories that are always skipped, like Prettier does.
+const VCS_DIRS: &[&str] = &[".git", ".hg", ".jj", ".sl", ".svn"];
+
+fn collect_vala_files(dir: &Path, respect_ignore: bool, out: &mut Vec<PathBuf>) {
+    let mut builder = ignore::WalkBuilder::new(dir);
+    builder
+        .hidden(false)
+        .git_ignore(respect_ignore)
+        .git_global(respect_ignore)
+        .git_exclude(respect_ignore)
+        .ignore(respect_ignore)
+        .parents(respect_ignore)
+        .require_git(false)
+        .follow_links(true)
+        .filter_entry(|entry| {
+            entry.depth() == 0
+                || !entry.file_type().is_some_and(|t| t.is_dir())
+                || !VCS_DIRS.contains(&entry.file_name().to_string_lossy().as_ref())
+        });
+    let walker = builder.build();
+    for entry in walker.filter_map(|e| e.ok()) {
+        if !entry.file_type().is_some_and(|t| t.is_file()) {
             continue;
         }
-        if path.is_dir() {
-            collect_vala_files(&path, out);
-        } else if matches!(
+        let path = entry.into_path();
+        if matches!(
             path.extension().and_then(|e| e.to_str()),
             Some("vala") | Some("vapi")
         ) {
