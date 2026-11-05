@@ -229,10 +229,9 @@ fn attribute_list_doc(attrs: &AttributeList) -> Doc {
                     inner.push(tok(&args.args.commas[j - 1]));
                     inner.push(doc::line());
                 }
+                // `key="value"`: no spaces around `=` inside attributes.
                 inner.push(tok(&arg.name));
-                inner.push(sp());
                 inner.push(tok(&arg.eq));
-                inner.push(sp());
                 inner.push(expr::expr_doc(&arg.value));
             }
             out.push(doc::group(doc::concat(vec![
