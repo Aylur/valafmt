@@ -5,7 +5,6 @@ pub mod lexer;
 pub mod options;
 pub mod parser;
 pub mod syntax;
-pub mod transform;
 
 pub use options::Options;
 
@@ -85,23 +84,8 @@ pub fn format_source(src: &str, options: &Options) -> Result<String, FormatError
             message,
         }])
     })?;
-    // Canonicalize single-class namespaces (`namespace NS { class K }` →
-    // `class NS.K`) as a source edit, then re-parse; the safety check runs
-    // against the canonicalized source.
-    let mut file = file;
-    let mut active_src = std::borrow::Cow::Borrowed(src);
-    let transformed = transform::apply(src);
-    if transformed != src {
-        let lexed2 = lexer::lex(&transformed);
-        if lexed2.errors.is_empty() {
-            if let Ok(f2) = parser::parse(lexed2.tokens) {
-                file = f2;
-                active_src = std::borrow::Cow::Owned(transformed);
-            }
-        }
-    }
-    let doc = format::format_file(&file, &active_src);
+    let doc = format::format_file(&file, src);
     let output = doc::printer::print(&doc, options);
-    check::verify(&active_src, &output).map_err(FormatError::SafetyCheck)?;
+    check::verify(src, &output).map_err(FormatError::SafetyCheck)?;
     Ok(output)
 }
