@@ -39,6 +39,11 @@ pub enum Doc {
     LineSuffix(Box<Doc>),
     /// Forces enclosing groups to break, no output of its own.
     BreakParent,
+    /// Prettier's `conditionalGroup`: alternative layouts of the same
+    /// content, from least to most expanded. The printer takes the first
+    /// state that fits flat, then the first later state whose first line
+    /// fits, falling back to the last state printed broken.
+    ConditionalGroup(Vec<Doc>),
     /// A preprocessor directive line: printed at column 0 on its own line,
     /// forcing enclosing groups to break. The caller emits the line break
     /// that follows it.
@@ -115,6 +120,28 @@ pub fn break_parent() -> Doc {
 
 pub fn directive(s: impl Into<String>) -> Doc {
     Doc::Directive(s.into())
+}
+
+pub fn conditional_group(states: Vec<Doc>) -> Doc {
+    Doc::ConditionalGroup(states)
+}
+
+/// Does this doc contain a forced line break (hard line, break_parent,
+/// should-break group, multi-line literal or directive)?
+pub fn will_break(doc: &Doc) -> bool {
+    match doc {
+        Doc::Text(_) | Doc::Line | Doc::SoftLine | Doc::IfBreak { .. } | Doc::LineSuffix(_) => {
+            false
+        }
+        Doc::Literal(s) => s.contains('\n'),
+        Doc::HardLine | Doc::BreakParent | Doc::Directive(_) => true,
+        Doc::Concat(children) => children.iter().any(will_break),
+        Doc::Group {
+            should_break, doc, ..
+        } => *should_break || will_break(doc),
+        Doc::Indent(inner) => will_break(inner),
+        Doc::ConditionalGroup(states) => states.first().is_some_and(will_break),
+    }
 }
 
 pub fn nil() -> Doc {

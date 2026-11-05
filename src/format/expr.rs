@@ -184,6 +184,12 @@ pub fn expr_doc(e: &Expr) -> Doc {
 }
 
 fn lambda_doc(params: &LambdaParams, arrow: &Token, body: &LambdaBody) -> Doc {
+    lambda_doc_with(params, arrow, body, false)
+}
+
+/// A lambda; `hugged` keeps the parameter list on one line (the hugged
+/// last-argument layout falls back to breaking the whole call instead).
+fn lambda_doc_with(params: &LambdaParams, arrow: &Token, body: &LambdaBody, hugged: bool) -> Doc {
     let mut out = Vec::new();
     match params {
         LambdaParams::Single(t) => out.push(tok(t)),
@@ -192,19 +198,30 @@ fn lambda_doc(params: &LambdaParams, arrow: &Token, body: &LambdaBody) -> Doc {
             params,
             r_paren,
         } => {
-            out.push(tok(l_paren));
+            let mut inner = Vec::new();
             for (i, p) in params.items.iter().enumerate() {
                 if i > 0 {
-                    out.push(tok(&params.commas[i - 1]));
-                    out.push(sp());
+                    inner.push(tok(&params.commas[i - 1]));
+                    inner.push(if hugged { sp() } else { doc::line() });
                 }
                 for m in &p.modifiers {
-                    out.push(tok(m));
-                    out.push(sp());
+                    inner.push(tok(m));
+                    inner.push(sp());
                 }
-                out.push(tok(&p.name));
+                inner.push(tok(&p.name));
             }
-            out.push(tok(r_paren));
+            if hugged || params.is_empty() {
+                out.push(tok(l_paren));
+                out.extend(inner);
+                out.push(tok(r_paren));
+            } else {
+                out.push(doc::group(doc::concat(vec![
+                    tok(l_paren),
+                    doc::indent(doc::concat(vec![doc::softline(), doc::concat(inner)])),
+                    doc::softline(),
+                    tok(r_paren),
+                ])));
+            }
         }
     }
     out.push(sp());
@@ -393,17 +410,13 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
     }
 }
 
-/// Does this argument list end with a lambda whose body is a block (or is a
-/// lambda at all)? If so the call "hugs" it: other args stay flat and the
+/// Does this argument list end with a lambda that is not preceded by
+/// another lambda? If so the call may "hug" it: other args stay flat and the
 /// lambda breaks internally.
 fn huggable_last_arg(args: &Punctuated<Arg>) -> bool {
-    match args.items.last() {
-        Some(Arg {
-            expr: Expr::Lambda { .. },
-            ..
-        }) => true,
-        _ => false,
-    }
+    let is_lambda = |a: Option<&Arg>| matches!(a, Some(Arg { expr: Expr::Lambda { .. }, .. }));
+    let n = args.items.len();
+    is_lambda(args.items.last()) && (n < 2 || !is_lambda(args.items.get(n - 2)))
 }
 
 fn chain_doc(e: &Expr) -> Doc {
@@ -557,16 +570,55 @@ pub fn call_args_doc(l_paren: &Token, args: &Punctuated<Arg>, r_paren: &Token) -
 
 /// Hugged argument list: `f(a, b, (x) => { ... })` — non-lambda args flat,
 /// the final lambda free to break internally without breaking the list.
+/// Falls back to one argument per line when the line up to the lambda's
+/// body does not fit (or another argument must break).
 fn hugged_call_args_doc(l_paren: &Token, args: &Punctuated<Arg>, r_paren: &Token) -> Doc {
-    let mut out = vec![tok(l_paren)];
-    for (i, a) in args.items.iter().enumerate() {
-        if i > 0 {
-            out.push(tok(&args.commas[i - 1]));
+    let n = args.items.len();
+    let leading: Vec<Doc> = args.items[..n - 1].iter().map(arg_doc).collect();
+    let expanded = call_args_doc(l_paren, args, r_paren);
+    if leading.iter().any(doc::will_break) {
+        return expanded;
+    }
+    let last = hugged_lambda_arg_doc(&args.items[n - 1]);
+    let state = |last: Doc| {
+        let mut out = vec![tok(l_paren)];
+        for (i, a) in leading.iter().enumerate() {
+            out.push(a.clone());
+            out.push(tok(&args.commas[i]));
             out.push(sp());
         }
-        out.push(arg_doc(a));
+        out.push(last);
+        out.push(tok(r_paren));
+        doc::concat(out)
+    };
+    let forced = doc::Doc::Group {
+        id: None,
+        should_break: true,
+        doc: Box::new(last.clone()),
+    };
+    doc::conditional_group(vec![state(last), state(forced), expanded])
+}
+
+fn hugged_lambda_arg_doc(a: &Arg) -> Doc {
+    let Expr::Lambda {
+        params,
+        arrow,
+        body,
+    } = &a.expr
+    else {
+        return arg_doc(a);
+    };
+    let mut out = Vec::new();
+    if let Some(m) = &a.modifier {
+        out.push(tok(m));
+        out.push(sp());
     }
-    out.push(tok(r_paren));
+    if let Some((name, colon)) = &a.name {
+        out.push(tok(name));
+        out.push(tok(colon));
+        out.push(sp());
+    }
+    out.push(lambda_doc_with(params, arrow, body, true));
     doc::concat(out)
 }
 

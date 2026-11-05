@@ -88,6 +88,20 @@ fn propagate_breaks(doc: &Doc) -> (Doc, bool) {
         }
         Doc::BreakParent => (Doc::BreakParent, true),
         Doc::Directive(s) => (Doc::Directive(s.clone()), true),
+        Doc::ConditionalGroup(states) => {
+            // The states are alternatives: each is propagated on its own, and
+            // the group forces its parents to break when the first one does.
+            let mut forces = false;
+            let mut out = Vec::with_capacity(states.len());
+            for (i, st) in states.iter().enumerate() {
+                let (d, f) = propagate_breaks(st);
+                if i == 0 {
+                    forces = f;
+                }
+                out.push(d);
+            }
+            (Doc::ConditionalGroup(out), forces)
+        }
     }
 }
 
@@ -175,6 +189,23 @@ impl<'a> Printer<'a> {
                     self.line_suffixes.push((ind, Mode::Flat, inner));
                 }
                 Doc::BreakParent => {}
+                Doc::ConditionalGroup(states) => {
+                    let chosen = if mode == Mode::Flat || states.len() == 1 {
+                        (ind, mode, &states[0])
+                    } else {
+                        let first = (ind, Mode::Flat, &states[0]);
+                        if self.fits(&first, &cmds) {
+                            first
+                        } else {
+                            states[1..states.len() - 1]
+                                .iter()
+                                .map(|st| (ind, Mode::Flat, st))
+                                .find(|c| self.fits(c, &cmds))
+                                .unwrap_or((ind, Mode::Break, &states[states.len() - 1]))
+                        }
+                    };
+                    cmds.push(chosen);
+                }
                 Doc::Directive(s) => {
                     self.flush_suffixes();
                     // Move to the start of a fresh line, then print at col 0.
@@ -290,6 +321,7 @@ impl<'a> Printer<'a> {
                 }
                 Doc::LineSuffix(_) => {}
                 Doc::BreakParent => {}
+                Doc::ConditionalGroup(states) => cmds.push((ind, mode, &states[0])),
                 Doc::Directive(_) => return true,
             }
             if remaining < 0 {
@@ -311,6 +343,7 @@ fn render_flat(doc: &Doc) -> String {
             Doc::Line => out.push(' '),
             Doc::SoftLine | Doc::HardLine | Doc::BreakParent | Doc::Directive(_) => {}
             Doc::IfBreak { flat, .. } => stack.push(flat),
+            Doc::ConditionalGroup(states) => stack.push(&states[0]),
         }
     }
     out
