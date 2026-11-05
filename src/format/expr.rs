@@ -142,7 +142,11 @@ pub fn expr_doc(e: &Expr) -> Doc {
         } => {
             let mut out = vec![tok(new_kw), sp(), type_doc(ty)];
             if let Some(a) = args {
-                out.push(call_args_doc(&a.l_paren, &a.args, &a.r_paren));
+                if huggable_last_arg(&a.args) {
+                    out.push(hugged_call_args_doc(&a.l_paren, &a.args, &a.r_paren));
+                } else {
+                    out.push(call_args_doc(&a.l_paren, &a.args, &a.r_paren));
+                }
             }
             if let Some(init) = initializer {
                 out.push(sp());
@@ -413,9 +417,10 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
     }
 }
 
-/// Does this argument list end with a lambda that is not preceded by
-/// another lambda? If so the call may "hug" it: other args stay flat and the
-/// lambda breaks internally.
+/// Can this argument list "hug" its last argument (other args stay flat and
+/// the last one breaks internally)? Yes for a trailing lambda not preceded by
+/// another lambda, and for a sole `new` expression (possibly assigned:
+/// `f(x = new Foo(\n...\n))`).
 fn huggable_last_arg(args: &Punctuated<Arg>) -> bool {
     let is_lambda = |a: Option<&Arg>| {
         matches!(
@@ -427,7 +432,19 @@ fn huggable_last_arg(args: &Punctuated<Arg>) -> bool {
         )
     };
     let n = args.items.len();
-    is_lambda(args.items.last()) && (n < 2 || !is_lambda(args.items.get(n - 2)))
+    match args.items.last() {
+        Some(a) if n == 1 && is_new(&a.expr) => true,
+        last => is_lambda(last) && (n < 2 || !is_lambda(args.items.get(n - 2))),
+    }
+}
+
+/// `new Foo(...)`, or an assignment chain ending in one.
+fn is_new(e: &Expr) -> bool {
+    match e {
+        Expr::New { .. } => true,
+        Expr::Assign { rhs, .. } => is_new(rhs),
+        _ => false,
+    }
 }
 
 fn chain_doc(e: &Expr) -> Doc {
@@ -579,8 +596,9 @@ pub fn call_args_doc(l_paren: &Token, args: &Punctuated<Arg>, r_paren: &Token) -
     ]))
 }
 
-/// Hugged argument list: `f(a, b, (x) => { ... })` — non-lambda args flat,
-/// the final lambda free to break internally without breaking the list.
+/// Hugged argument list: `f(a, b, (x) => { ... })` — leading args flat, the
+/// final lambda (or sole `new` expression) free to break internally without
+/// breaking the list.
 /// Falls back to one argument per line when the line up to the lambda's
 /// body does not fit (or another argument must break).
 fn hugged_call_args_doc(l_paren: &Token, args: &Punctuated<Arg>, r_paren: &Token) -> Doc {
