@@ -23,4 +23,7 @@ void main() {
     Timeout.add(100, (a, b) => {
         return false;
     });
+    var id = group.items_changed.connect((pos, rem, add, asd) => handle_items_changed(group, pos, rem, add, asd));
+    var id = group.items_changed.connect((pos, rem, add, asd, hello, there, whatpup, hasd, a123, aluwbdabdakwhb) => handle_items_changed(group, pos, rem, add, asd));
+    var id = group.items_changed.connect((pos, rem, add, asd, hello, there, whatpup, hasd, a123, aluwbdabdakwhb, more, params) => handle_items_changed(group, pos, rem, add, asd));
 }

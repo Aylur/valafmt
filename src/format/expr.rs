@@ -232,10 +232,13 @@ fn lambda_doc_with(params: &LambdaParams, arrow: &Token, body: &LambdaBody, hugg
             out.push(block_doc(b));
         }
         LambdaBody::Expr(e) => {
-            out.push(doc::group(doc::indent(doc::concat(vec![
-                doc::line(),
-                expr_doc(e),
-            ]))));
+            // A hugged lambda whose body breaks puts the call's closing paren
+            // on its own line: `f((x) =>\n    body\n)`.
+            let close = if hugged { doc::softline() } else { doc::nil() };
+            out.push(doc::group(doc::concat(vec![
+                doc::indent(doc::concat(vec![doc::line(), expr_doc(e)])),
+                close,
+            ])));
         }
     }
     doc::concat(out)

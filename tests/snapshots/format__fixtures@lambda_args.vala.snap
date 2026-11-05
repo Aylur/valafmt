@@ -60,8 +60,20 @@ void main() {
     Idle.add(() => long_function_name_here(argument_one, argument_two, argument_three, arg_four));
     foo(a, (x) => x + 1);
     Idle.add(() =>
-        long_function_name_here(argument_one, argument_two, argument_three, arg_four, a5));
+        long_function_name_here(argument_one, argument_two, argument_three, arg_four, a5)
+    );
     Timeout.add(100, (a, b) => {
         return false;
     });
+    var id = group.items_changed.connect((pos, rem, add, asd) =>
+        handle_items_changed(group, pos, rem, add, asd)
+    );
+    var id = group.items_changed.connect(
+        (pos, rem, add, asd, hello, there, whatpup, hasd, a123, aluwbdabdakwhb) =>
+            handle_items_changed(group, pos, rem, add, asd)
+    );
+    var id = group.items_changed.connect(
+        (pos, rem, add, asd, hello, there, whatpup, hasd, a123, aluwbdabdakwhb, more, params) =>
+            handle_items_changed(group, pos, rem, add, asd)
+    );
 }
