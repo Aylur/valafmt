@@ -42,3 +42,10 @@ You can also mark a range with `valafmt-ignore-start` and `valafmt-ignore-end`
 
 Anything matched by `.ignore`, `.gitignore`, `.git/info/exclude` or your global
 git excludes are automatically ignored.
+
+## Configuration
+
+valafmt reads `indent_size` and `max_line_length` from `.editorconfig`
+(`indent_size = tab` uses `tab_width`). The `--indent` and `--width` flags take
+precedence over it. When formatting stdin, `.editorconfig` is resolved as if
+the input were a `stdin.vala` file in the current directory.

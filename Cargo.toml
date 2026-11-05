@@ -8,6 +8,7 @@ license = "MIT"
 [dependencies]
 anyhow = "1"
 clap = { version = "4", features = ["derive"] }
+ec4rs = "1.2.0"
 ignore = "0.4"
 
 [dev-dependencies]

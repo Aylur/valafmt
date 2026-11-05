@@ -28,12 +28,12 @@ pub struct Args {
     pub stdout: bool,
 
     /// Preferred maximum line width.
-    #[arg(long, default_value_t = 100)]
-    pub width: u16,
+    #[arg(long)]
+    pub width: Option<u16>,
 
     /// Indentation width in spaces.
-    #[arg(long, default_value_t = 4)]
-    pub indent: u8,
+    #[arg(long)]
+    pub indent: Option<u8>,
 
     /// Debug: dump the token stream (with trivia) instead of formatting.
     #[arg(long, hide = true)]
@@ -42,16 +42,13 @@ pub struct Args {
 
 pub fn run() -> ExitCode {
     let args = Args::parse();
-    let options = Options {
-        width: args.width,
-        indent: args.indent,
-    };
-
     if args.dump_tokens {
         return dump_tokens_mode(&args);
     }
 
     if args.paths.is_empty() {
+        // Resolve .editorconfig as if stdin were a .vala file in the cwd.
+        let options = cli_options(&args, editorconfig_options(Path::new("stdin.vala")));
         return stdin_mode(&args, &options);
     }
 
@@ -83,6 +80,7 @@ pub fn run() -> ExitCode {
                 continue;
             }
         };
+        let options = cli_options(&args, editorconfig_options(file));
         match format_source(&src, &options) {
             Ok(out) => {
                 if out == src {
@@ -161,6 +159,43 @@ fn stdin_mode(args: &Args, options: &Options) -> ExitCode {
             ExitCode::from(3)
         }
     }
+}
+
+/// Applies the options given on the command line on top of `base`.
+fn cli_options(args: &Args, base: Options) -> Options {
+    Options {
+        width: args.width.unwrap_or(base.width),
+        indent: args.indent.unwrap_or(base.indent),
+    }
+}
+
+/// Reads `max_line_length` and `indent_size` from the .editorconfig files
+/// that apply to `file`, falling back to the defaults for anything missing.
+fn editorconfig_options(file: &Path) -> Options {
+    use ec4rs::property::{IndentSize, MaxLineLen, TabWidth};
+
+    let mut options = Options::default();
+    let Ok(path) = std::path::absolute(file) else {
+        return options;
+    };
+    let Ok(props) = ec4rs::properties_of(path) else {
+        return options;
+    };
+    if let Ok(MaxLineLen::Value(n)) = props.get::<MaxLineLen>() {
+        options.width = u16::try_from(n).unwrap_or(options.width);
+    }
+    let indent = match props.get::<IndentSize>() {
+        Ok(IndentSize::Value(n)) => Some(n),
+        Ok(IndentSize::UseTabWidth) => match props.get::<TabWidth>() {
+            Ok(TabWidth::Value(n)) => Some(n),
+            _ => None,
+        },
+        Err(_) => None,
+    };
+    if let Some(n) = indent {
+        options.indent = u8::try_from(n).unwrap_or(options.indent);
+    }
+    options
 }
 
 /// Version control directories that are always skipped, like Prettier does.
