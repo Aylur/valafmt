@@ -3,8 +3,11 @@
 pub struct Options {
     /// Preferred maximum line width; groups break when they would exceed it.
     pub width: u16,
-    /// Indentation width in spaces.
+    /// Indentation width in columns. With `use_tabs` this is the tab width
+    /// used when measuring lines against `width`.
     pub indent: u8,
+    /// Indent with tabs instead of spaces.
+    pub use_tabs: bool,
 }
 
 impl Default for Options {
@@ -12,6 +15,7 @@ impl Default for Options {
         Options {
             width: 100,
             indent: 4,
+            use_tabs: false,
         }
     }
 }

@@ -15,6 +15,7 @@ pub fn print(doc: &Doc, options: &Options) -> String {
     Printer {
         width: options.width as isize,
         indent_width: options.indent as usize,
+        use_tabs: options.use_tabs,
         out: String::new(),
         col: 0,
         group_modes: HashMap::new(),
@@ -90,12 +91,13 @@ fn propagate_breaks(doc: &Doc) -> (Doc, bool) {
     }
 }
 
-/// A print command: (indentation level in spaces, mode, doc).
+/// A print command: (indentation level in columns, mode, doc).
 type Cmd<'a> = (usize, Mode, &'a Doc);
 
 struct Printer<'a> {
     width: isize,
     indent_width: usize,
+    use_tabs: bool,
     out: String,
     col: usize,
     group_modes: HashMap<GroupId, Mode>,
@@ -196,9 +198,14 @@ impl<'a> Printer<'a> {
         self.flush_suffixes();
         trim_trailing_spaces(&mut self.out);
         self.out.push('\n');
-        for _ in 0..ind {
-            self.out.push(' ');
-        }
+        // With tabs, each indent level is one tab counted as `indent_width`
+        // columns.
+        let (tabs, spaces) = match self.use_tabs && self.indent_width > 0 {
+            true => (ind / self.indent_width, ind % self.indent_width),
+            false => (0, ind),
+        };
+        self.out.extend(std::iter::repeat_n('\t', tabs));
+        self.out.extend(std::iter::repeat_n(' ', spaces));
         self.col = ind;
     }
 
@@ -328,7 +335,30 @@ mod tests {
     use crate::doc::*;
 
     fn opts(width: u16) -> Options {
-        Options { width, indent: 4 }
+        Options {
+            width,
+            indent: 4,
+            use_tabs: false,
+        }
+    }
+
+    #[test]
+    fn indents_with_tabs() {
+        let d = group(concat(vec![
+            text("foo("),
+            indent(concat(vec![
+                softline(),
+                text("aaaa,"),
+                indent(concat(vec![line(), text("bbbb")])),
+            ])),
+            softline(),
+            text(")"),
+        ]));
+        let options = Options {
+            use_tabs: true,
+            ..opts(12)
+        };
+        assert_eq!(print(&d, &options), "foo(\n\taaaa,\n\t\tbbbb\n)");
     }
 
     #[test]

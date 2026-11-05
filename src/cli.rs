@@ -35,6 +35,10 @@ pub struct Args {
     #[arg(long)]
     pub indent: Option<u8>,
 
+    /// Indent with tabs instead of spaces.
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true", value_name = "BOOL")]
+    pub use_tabs: Option<bool>,
+
     /// Debug: dump the token stream (with trivia) instead of formatting.
     #[arg(long, hide = true)]
     pub dump_tokens: bool,
@@ -166,21 +170,25 @@ fn cli_options(args: &Args, base: Options) -> Options {
     Options {
         width: args.width.unwrap_or(base.width),
         indent: args.indent.unwrap_or(base.indent),
+        use_tabs: args.use_tabs.unwrap_or(base.use_tabs),
     }
 }
 
-/// Reads `max_line_length` and `indent_size` from the .editorconfig files
-/// that apply to `file`, falling back to the defaults for anything missing.
+/// Reads `max_line_length`, `indent_style` and `indent_size` from the
+/// .editorconfig files that apply to `file`, falling back to the defaults for
+/// anything missing.
 fn editorconfig_options(file: &Path) -> Options {
-    use ec4rs::property::{IndentSize, MaxLineLen, TabWidth};
+    use ec4rs::property::{IndentSize, IndentStyle, MaxLineLen, TabWidth};
 
     let mut options = Options::default();
     let Ok(path) = std::path::absolute(file) else {
         return options;
     };
-    let Ok(props) = ec4rs::properties_of(path) else {
+    let Ok(mut props) = ec4rs::properties_of(path) else {
         return options;
     };
+    // Derives indent_size from indent_style = tab and tab_width, per the spec.
+    props.use_fallbacks();
     if let Ok(MaxLineLen::Value(n)) = props.get::<MaxLineLen>() {
         options.width = u16::try_from(n).unwrap_or(options.width);
     }
@@ -194,6 +202,11 @@ fn editorconfig_options(file: &Path) -> Options {
     };
     if let Some(n) = indent {
         options.indent = u8::try_from(n).unwrap_or(options.indent);
+    }
+    match props.get::<IndentStyle>() {
+        Ok(IndentStyle::Tabs) => options.use_tabs = true,
+        Ok(IndentStyle::Spaces) => options.use_tabs = false,
+        Err(_) => {}
     }
     options
 }

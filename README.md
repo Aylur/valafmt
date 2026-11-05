@@ -45,7 +45,5 @@ git excludes are automatically ignored.
 
 ## Configuration
 
-valafmt reads `indent_size` and `max_line_length` from `.editorconfig`
-(`indent_size = tab` uses `tab_width`). The `--indent` and `--width` flags take
-precedence over it. When formatting stdin, `.editorconfig` is resolved as if
-the input were a `stdin.vala` file in the current directory.
+valafmt reads `indent_style`, `indent_size` and `max_line_length` from
+`.editorconfig`.
