@@ -417,7 +417,15 @@ fn flatten_chain<'a>(mut e: &'a Expr, links: &mut Vec<Link<'a>>) -> &'a Expr {
 /// another lambda? If so the call may "hug" it: other args stay flat and the
 /// lambda breaks internally.
 fn huggable_last_arg(args: &Punctuated<Arg>) -> bool {
-    let is_lambda = |a: Option<&Arg>| matches!(a, Some(Arg { expr: Expr::Lambda { .. }, .. }));
+    let is_lambda = |a: Option<&Arg>| {
+        matches!(
+            a,
+            Some(Arg {
+                expr: Expr::Lambda { .. },
+                ..
+            })
+        )
+    };
     let n = args.items.len();
     is_lambda(args.items.last()) && (n < 2 || !is_lambda(args.items.get(n - 2)))
 }

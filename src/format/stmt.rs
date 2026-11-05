@@ -49,12 +49,17 @@ fn paren_cond(l: &Token, e: &Expr, r: &Token) -> Doc {
     ]))
 }
 
-/// The body of if/while/for/foreach: ` { ... }` for blocks, otherwise the
-/// statement inline when it fits, indented on its own line when it doesn't.
-fn embedded_body(s: &Stmt) -> Doc {
+/// A control-flow header (`if (...)`, `while (...)`, ...) followed by its
+/// body: ` { ... }` for blocks, otherwise the statement inline when the whole
+/// thing fits, indented on its own line when it doesn't. Header and body
+/// share one group so a header that breaks always pushes the body down.
+fn with_body(header: Doc, s: &Stmt) -> Doc {
     match s {
-        Stmt::Block(b) => doc::concat(vec![sp(), block_doc(b)]),
-        other => doc::group(doc::indent(doc::concat(vec![doc::line(), stmt_doc(other)]))),
+        Stmt::Block(b) => doc::concat(vec![header, sp(), block_doc(b)]),
+        other => doc::group(doc::concat(vec![
+            header,
+            doc::indent(doc::concat(vec![doc::line(), stmt_doc(other)])),
+        ])),
     }
 }
 
@@ -67,12 +72,14 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
         Stmt::Expr { expr, semicolon } => doc::concat(vec![expr_doc(expr), tok(semicolon)]),
         Stmt::If(i) => if_doc(i),
         Stmt::Switch(sw) => switch_doc(sw),
-        Stmt::While(w) => doc::concat(vec![
-            tok(&w.while_kw),
-            sp(),
-            paren_cond(&w.l_paren, &w.cond, &w.r_paren),
-            embedded_body(&w.body),
-        ]),
+        Stmt::While(w) => with_body(
+            doc::concat(vec![
+                tok(&w.while_kw),
+                sp(),
+                paren_cond(&w.l_paren, &w.cond, &w.r_paren),
+            ]),
+            &w.body,
+        ),
         Stmt::DoWhile(d) => {
             let body = match &*d.body {
                 Stmt::Block(b) => doc::concat(vec![sp(), block_doc(b), sp()]),
@@ -91,26 +98,28 @@ pub fn stmt_doc(s: &Stmt) -> Doc {
             ])
         }
         Stmt::For(f) => for_doc(f),
-        Stmt::Foreach(f) => doc::concat(vec![
-            tok(&f.foreach_kw),
-            sp(),
-            doc::group(doc::concat(vec![
-                tok(&f.l_paren),
-                doc::indent(doc::concat(vec![
+        Stmt::Foreach(f) => with_body(
+            doc::concat(vec![
+                tok(&f.foreach_kw),
+                sp(),
+                doc::group(doc::concat(vec![
+                    tok(&f.l_paren),
+                    doc::indent(doc::concat(vec![
+                        doc::softline(),
+                        local_decl_type_doc(&f.ty),
+                        sp(),
+                        tok(&f.name),
+                        sp(),
+                        tok(&f.in_kw),
+                        sp(),
+                        expr_doc(&f.expr),
+                    ])),
                     doc::softline(),
-                    local_decl_type_doc(&f.ty),
-                    sp(),
-                    tok(&f.name),
-                    sp(),
-                    tok(&f.in_kw),
-                    sp(),
-                    expr_doc(&f.expr),
+                    tok(&f.r_paren),
                 ])),
-                doc::softline(),
-                tok(&f.r_paren),
-            ])),
-            embedded_body(&f.body),
-        ]),
+            ]),
+            &f.body,
+        ),
         Stmt::Break { kw, semicolon }
         | Stmt::Continue { kw, semicolon }
         | Stmt::Yield { kw, semicolon } => doc::concat(vec![tok(kw), tok(semicolon)]),
@@ -230,13 +239,13 @@ pub fn local_decl_doc(d: &LocalDecl) -> Doc {
 }
 
 fn if_doc(i: &IfStmt) -> Doc {
-    let mut out = vec![
+    let header = doc::concat(vec![
         tok(&i.if_kw),
         sp(),
         paren_cond(&i.l_paren, &i.cond, &i.r_paren),
-    ];
+    ]);
     let then_is_block = matches!(&*i.then, Stmt::Block(_));
-    out.push(embedded_body(&i.then));
+    let mut out = vec![with_body(header, &i.then)];
     if let Some(els) = &i.else_branch {
         if then_is_block {
             out.push(sp());
@@ -293,8 +302,7 @@ fn for_doc(f: &ForStmt) -> Doc {
         }
     }
     header.push(tok(&f.r_paren));
-    header.push(embedded_body(&f.body));
-    doc::concat(header)
+    with_body(doc::concat(header), &f.body)
 }
 
 fn switch_doc(sw: &SwitchStmt) -> Doc {
