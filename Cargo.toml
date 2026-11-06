@@ -4,6 +4,7 @@ version = "0.2.1"
 edition = "2021"
 description = "An opinionated code formatter for the Vala programming language"
 license = "MIT"
+repository = "https://github.com/Aylur/valafmt"
 
 [dependencies]
 anyhow = "1"
