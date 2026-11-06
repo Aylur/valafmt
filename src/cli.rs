@@ -1,5 +1,5 @@
 use clap::Parser;
-use std::io::Read;
+use std::io::{IsTerminal, Read};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -19,13 +19,13 @@ pub struct Args {
     #[arg(long)]
     pub no_ignore: bool,
 
-    /// Don't write; report files that would change (exit 1 if any).
-    #[arg(long)]
+    /// Check if the given files are formatted (exit 1 if any are not).
+    #[arg(short, long, conflicts_with = "write")]
     pub check: bool,
 
-    /// Print the formatted result to stdout instead of writing in place.
-    #[arg(long)]
-    pub stdout: bool,
+    /// Edit files in-place. Without this, formatted output goes to stdout.
+    #[arg(short, long)]
+    pub write: bool,
 
     /// Preferred maximum line width.
     #[arg(long)]
@@ -51,6 +51,10 @@ pub fn run() -> ExitCode {
     }
 
     if args.paths.is_empty() {
+        if args.write {
+            eprintln!("valafmt: --write requires at least one path");
+            return ExitCode::from(2);
+        }
         // Resolve .editorconfig as if stdin were a .vala file in the cwd.
         let options = cli_options(&args, editorconfig_options(Path::new("stdin.vala")));
         return stdin_mode(&args, &options);
@@ -72,7 +76,7 @@ pub fn run() -> ExitCode {
         return ExitCode::from(2);
     }
 
-    let mut would_change = 0usize;
+    let mut unformatted = 0usize;
     let mut errors = 0usize;
     let mut internal = false;
     for file in &files {
@@ -85,23 +89,8 @@ pub fn run() -> ExitCode {
             }
         };
         let options = cli_options(&args, editorconfig_options(file));
-        match format_source(&src, &options) {
-            Ok(out) => {
-                if out == src {
-                    continue;
-                }
-                if args.check {
-                    println!("{}", file.display());
-                    would_change += 1;
-                } else if args.stdout {
-                    print!("{out}");
-                } else {
-                    if let Err(e) = std::fs::write(file, &out) {
-                        eprintln!("valafmt: {}: {e}", file.display());
-                        errors += 1;
-                    }
-                }
-            }
+        let out = match format_source(&src, &options) {
+            Ok(out) => out,
             Err(FormatError::Parse(diags)) => {
                 for d in diags {
                     eprintln!(
@@ -113,11 +102,32 @@ pub fn run() -> ExitCode {
                     );
                 }
                 errors += 1;
+                continue;
             }
             Err(e @ FormatError::SafetyCheck(_)) => {
                 eprintln!("valafmt: {}: {e}", file.display());
                 internal = true;
+                continue;
             }
+        };
+
+        let name = file.display().to_string();
+        if args.check {
+            if out != src {
+                warn(&name);
+                unformatted += 1;
+            }
+        } else if args.write {
+            if out != src {
+                if let Err(e) = std::fs::write(file, &out) {
+                    eprintln!("valafmt: {}: {e}", file.display());
+                    errors += 1;
+                    continue;
+                }
+                println!("{name}");
+            }
+        } else {
+            print!("{out}");
         }
     }
 
@@ -125,10 +135,25 @@ pub fn run() -> ExitCode {
         ExitCode::from(3)
     } else if errors > 0 {
         ExitCode::from(2)
-    } else if would_change > 0 {
+    } else if unformatted > 0 {
         ExitCode::from(1)
     } else {
         ExitCode::SUCCESS
+    }
+}
+
+/// Prints `[warn] msg` to stderr, like Prettier does.
+fn warn(msg: &str) {
+    let color = std::io::stderr().is_terminal();
+    eprintln!("[{}] {msg}", paint(color, "33", "warn"));
+}
+
+/// Wraps `text` in the ANSI color `code` when `color` is set.
+fn paint(color: bool, code: &str, text: &str) -> String {
+    if color {
+        format!("\x1b[{code}m{text}\x1b[0m")
+    } else {
+        text.to_string()
     }
 }
 
@@ -144,7 +169,7 @@ fn stdin_mode(args: &Args, options: &Options) -> ExitCode {
                 if out == src {
                     ExitCode::SUCCESS
                 } else {
-                    eprintln!("valafmt: stdin would be reformatted");
+                    warn("(stdin)");
                     ExitCode::from(1)
                 }
             } else {
