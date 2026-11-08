@@ -530,6 +530,9 @@ impl<'a> Lexer<'a> {
             self.cur.bump();
         }
         if escaped {
+            // Build-system placeholders such as meson's `configure_file`
+            // substitutions (`@VERSION@`) lex as a single identifier.
+            self.cur.eat(b'@');
             return TokenKind::Ident;
         }
         match Keyword::from_str(self.cur.slice_from(start)) {

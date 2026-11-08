@@ -136,6 +136,14 @@ fn escaped_identifier() {
 }
 
 #[test]
+fn build_placeholder() {
+    let result = lexer::lex("var v = @VERSION@;");
+    assert!(result.errors.is_empty());
+    assert_eq!(result.tokens[3].kind, TokenKind::Ident);
+    assert_eq!(result.tokens[3].text, "@VERSION@");
+}
+
+#[test]
 fn blank_line_counting() {
     let result = lexer::lex("int a;\n\n\n\nint b;\n");
     let b_tok = result
